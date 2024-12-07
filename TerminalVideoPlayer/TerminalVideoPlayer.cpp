@@ -38,13 +38,14 @@ std::string format_seconds(int s) {
     return formatted.str();
 }
 
-void display_status_bar(int curr_frame, int total_frames, int duration_seconds, int fps, int width, int height) {
+void display_status_bar(int curr_frame, int total_frames, int duration_seconds, int fps, double curr_fps, int width, int height) {
     int seconds_watched {curr_frame / fps};
     std::string result;
     set_cursor(0, 0, result);
     std::cout << result;
     std::cout << "\033[0mFrame " << curr_frame << "/" << total_frames << " " << width << "x" << height << " "
               << format_seconds(seconds_watched) << "/" << format_seconds(duration_seconds) << " "
+              << std::setprecision(2) << std::fixed << curr_fps << "fps"
               << '\n';
 }
 
@@ -84,13 +85,17 @@ int main(int argc, char *argv[]) {
     double total_frames {video.get(VideoCaptureProperties::CAP_PROP_FRAME_COUNT)};
     double fps {video.get(VideoCaptureProperties::CAP_PROP_FPS)};
     double duration_seconds {total_frames / fps};
-    long long target_frame_time {1 / static_cast<long long>(fps + 1) * 1000};
+    double curr_fps {};
+    long long target_frame_time {static_cast<long long>(1.0 / static_cast<long long>(fps + 1) * 1000)};
+    std::pair last_size {0, 0};
 
 #ifdef CURR_FRAME
     CurrentFrame frame_drawer;
 #endif
 
     for (int curr_frame {1}; curr_frame < total_frames; curr_frame++) {
+        auto startTime = std::chrono::high_resolution_clock::now();
+
         Mat data;
         video.read(data);
 
@@ -98,13 +103,16 @@ int main(int argc, char *argv[]) {
         height = height * 2 - 4;
         data = resize_mat(data, height, width);
 
-        display_status_bar(curr_frame, total_frames, duration_seconds, fps, data.cols, data.rows);
+        display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, data.cols, data.rows);
 #ifdef CURR_FRAME
         std::string to_display;
         to_display.reserve(width * height * 3);
-        if (curr_frame == 1) {
+        if (curr_frame == 1 || width != last_size.first || height != last_size.second) {
+            clear_screen();
             frame_drawer.init_currently_displayed(data);
             frame_drawer.display_entire_frame(to_display);
+            last_size.first = width;
+            last_size.second = height;
         } else {
             frame_drawer.process_new_frame(data, to_display);
         }
@@ -112,6 +120,16 @@ int main(int argc, char *argv[]) {
 #else
         draw_frame(data);
 #endif
+        auto endTime = std::chrono::high_resolution_clock::now();
+        auto elapsedTimeMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+        int sleepTimeMs = target_frame_time - static_cast<int>(elapsedTimeMs);
+        if (sleepTimeMs > 0) {
+            curr_fps = fps;
+            std::this_thread::sleep_for(std::chrono::milliseconds(sleepTimeMs));
+        } else {
+            curr_fps = 1.0 / (elapsedTimeMs / 1000.0);
+        }
+
     }
 
     video.release();
