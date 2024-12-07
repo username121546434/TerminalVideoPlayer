@@ -4,7 +4,13 @@ A video player in your terminal!
 
 # Demo
 
+## Demo 1
+
 https://github.com/user-attachments/assets/7176ce8e-701c-4b01-8cc9-37b7d800cb0b
+
+## Demo 2
+
+https://youtu.be/mbVJx1C-6qg
 
 # Download
 
