@@ -89,6 +89,7 @@ int main(int argc, char *argv[]) {
     double curr_fps {};
     long long target_frame_time {static_cast<long long>(1.0 / static_cast<long long>(fps + 1) * 1000)};
     std::pair last_size {0, 0};
+    int frames_to_drop {};
 
 #ifdef CURR_FRAME
     CurrentFrame frame_drawer;
@@ -99,6 +100,10 @@ int main(int argc, char *argv[]) {
 
         Mat data;
         video.read(data);
+        if (frames_to_drop) {
+            frames_to_drop--;
+            continue;
+        }
 
         auto [width, height] = get_terminal_size();
         height = height * 2 - 4;
@@ -129,6 +134,7 @@ int main(int argc, char *argv[]) {
             std::this_thread::sleep_for(std::chrono::milliseconds(sleepTimeMs));
         } else {
             curr_fps = 1.0 / (elapsedTimeMs / 1000.0);
+            frames_to_drop = fps / curr_fps;
         }
 
     }
