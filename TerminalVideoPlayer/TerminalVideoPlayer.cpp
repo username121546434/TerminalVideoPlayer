@@ -133,4 +133,5 @@ int main(int argc, char *argv[]) {
     }
 
     video.release();
+    fmt::print("\033[0m"); // resets terminal color so that the user can continue with the same window
 }

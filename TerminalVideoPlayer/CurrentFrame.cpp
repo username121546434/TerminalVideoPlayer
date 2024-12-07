@@ -4,7 +4,7 @@
 #include <fmt/core.h>
 #include <fstream>
 
-constexpr double threshold = 20.0;
+constexpr double threshold = 25.0;
 constexpr double optimization_threshold = 0.40;
 
 CurrentFrame::CurrentFrame(const cv::Mat &start_frame) : currently_displayed {} {
