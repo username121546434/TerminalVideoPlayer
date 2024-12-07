@@ -108,12 +108,12 @@ int main(int argc, char *argv[]) {
 #ifdef CURR_FRAME
         std::string to_display;
         to_display.reserve(width * height * 3);
-        if (curr_frame == 1 || width != last_size.first || height != last_size.second) {
+        if (curr_frame == 1 || data.cols != last_size.first || data.rows != last_size.second) {
             clear_screen();
             frame_drawer.init_currently_displayed(data);
             frame_drawer.display_entire_frame(to_display);
-            last_size.first = width;
-            last_size.second = height;
+            last_size.first = data.cols;
+            last_size.second = data.rows;
         } else {
             frame_drawer.process_new_frame(data, to_display);
         }
