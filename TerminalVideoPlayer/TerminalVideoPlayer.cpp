@@ -8,6 +8,7 @@
 #include <fmt/core.h>
 
 // experimental optimization, enable or disable if you wish
+// with it on, it can run faster
 #define CURR_FRAME
 
 #ifdef CURR_FRAME
