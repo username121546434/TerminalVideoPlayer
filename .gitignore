@@ -1,0 +1,5 @@
+Build/
+.vs/
+vcpkg_installed/
+*.vcxproj.filters
+*.vcxproj.user
