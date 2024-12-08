@@ -14,7 +14,7 @@ https://youtu.be/mbVJx1C-6qg
 
 # Download
 
-Go to the github release page to download this
+Go to the [github release page](https://github.com/username121546434/TerminalVideoPlayer/releases) to download this
 
 # Usage
 
