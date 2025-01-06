@@ -174,8 +174,10 @@ int main(int argc, char *argv[]) {
 
     auto [width, height] = get_terminal_size();
     height = height * 2 - 4;
+    clear_screen();
 
     for (int curr_frame {1}; curr_frame < total_frames; curr_frame++) {
+        std::cout << "\033[HProcessing frame (" << curr_frame << '/' << total_frames << ").....\n";
         Mat data;
         video.read(data);
 
@@ -192,7 +194,6 @@ int main(int argc, char *argv[]) {
         frame_list.push_back(currently_displayed);
         frame_buffer.push_back(to_display);
     }
-    // iterate over both frame_buffer and frame_list
 
     for (int curr_frame = 0; curr_frame < frame_list.size(); ++curr_frame) {
         auto startTime = std::chrono::high_resolution_clock::now();
@@ -202,8 +203,6 @@ int main(int argc, char *argv[]) {
         display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, frame[0].size(), frame.size());
         std::string to_display = frame_buffer.at(curr_frame);
         to_display.reserve(width * height * 3);
-        if (curr_frame == 1)
-            clear_screen();
         fmt::print(stdout, to_display);
         auto endTime = std::chrono::high_resolution_clock::now();
         auto elapsedTimeMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
