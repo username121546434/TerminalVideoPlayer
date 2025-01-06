@@ -7,10 +7,11 @@
 #include "utils.h"
 #include <fmt/core.h>
 
-
 constexpr const char *block = u8"\u2584"; // ? character
 constexpr double threshold = 25.0;
 constexpr double optimization_threshold = 0.40;
+
+typedef std::vector<std::vector<Pixel>> Frame;
 
 using namespace cv;
 
@@ -166,34 +167,43 @@ int main(int argc, char *argv[]) {
     std::pair last_size {0, 0};
     int frames_to_drop {};
     
-    std::vector<std::vector<Pixel>> currently_displayed;
+    Frame currently_displayed;
+    std::vector<Frame> frame_list;
+    std::vector<std::string> frame_buffer;
+    frame_buffer.reserve(total_frames);
+
+    auto [width, height] = get_terminal_size();
+    height = height * 2 - 4;
 
     for (int curr_frame {1}; curr_frame < total_frames; curr_frame++) {
-        auto startTime = std::chrono::high_resolution_clock::now();
-
         Mat data;
         video.read(data);
-        if (frames_to_drop) {
-            frames_to_drop--;
-            continue;
-        }
 
-        auto [width, height] = get_terminal_size();
-        height = height * 2 - 4;
         data = resize_mat(data, height, width);
 
-        display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, data.cols, data.rows);
         std::string to_display;
         to_display.reserve(width * height * 3);
-        if (curr_frame == 1 || data.cols != last_size.first || data.rows != last_size.second) {
-            clear_screen();
+        if (curr_frame == 1) {
             init_currently_displayed(data, currently_displayed);
             display_entire_frame(to_display, currently_displayed);
-            last_size.first = data.cols;
-            last_size.second = data.rows;
         } else {
             process_new_frame(data, to_display, currently_displayed);
         }
+        frame_list.push_back(currently_displayed);
+        frame_buffer.push_back(to_display);
+    }
+    // iterate over both frame_buffer and frame_list
+
+    for (int curr_frame = 0; curr_frame < frame_list.size(); ++curr_frame) {
+        auto startTime = std::chrono::high_resolution_clock::now();
+
+        Frame frame {frame_list.at(curr_frame)};
+
+        display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, frame[0].size(), frame.size());
+        std::string to_display = frame_buffer.at(curr_frame);
+        to_display.reserve(width * height * 3);
+        if (curr_frame == 1)
+            clear_screen();
         fmt::print(stdout, to_display);
         auto endTime = std::chrono::high_resolution_clock::now();
         auto elapsedTimeMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
