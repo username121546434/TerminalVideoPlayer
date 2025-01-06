@@ -7,15 +7,10 @@
 #include "utils.h"
 #include <fmt/core.h>
 
-// experimental optimization, enable or disable if you wish
-// with it on, it can run faster
-#define CURR_FRAME
 
-#ifdef CURR_FRAME
-#include "CurrentFrame.h"
-#else
 constexpr const char *block = u8"\u2584"; // ? character
-#endif
+constexpr double threshold = 25.0;
+constexpr double optimization_threshold = 0.40;
 
 using namespace cv;
 
@@ -50,23 +45,103 @@ void display_status_bar(int curr_frame, int total_frames, int duration_seconds, 
               << '\n';
 }
 
-void draw_frame(const Mat &frame) {
-    std::string to_print;
-    to_print.reserve(frame.cols * frame.rows * 3);
-    for (int y {0}; y < frame.rows; y += 2) {
-        for (int x {0}; x < frame.cols; x++) {
-            Pixel top_pixel {frame.at<cv::Vec3b>(y, x)};
-            Pixel bottom_pixel {frame.at<cv::Vec3b>(y + 1, x)};
-            set_color(top_pixel, true, to_print);
-            set_color(bottom_pixel, false, to_print);
-            to_print += block;
-            if (x == frame.cols - 1)
-                to_print += "\033[0m\n";
+void update_pixel(Pixel new_pixel, size_t x, size_t y, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed);
+void display_entire_frame(std::string &result, const std::vector<std::vector<Pixel>> &currently_displayed);
+void process_new_frame(const cv::Mat &frame, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed);
+
+void init_currently_displayed(const cv::Mat &start_frame, std::vector<std::vector<Pixel>> &currently_displayed) {
+    currently_displayed.resize(start_frame.rows);
+    for (int row = 0; row < start_frame.rows; ++row) {
+        auto &curr_row {currently_displayed[row]};
+        curr_row.reserve(start_frame.cols);
+
+        for (int col = 0; col < start_frame.cols; ++col) {
+            cv::Vec3b pixel = start_frame.at<cv::Vec3b>(row, col);
+            curr_row.emplace_back(pixel);
         }
     }
-    fmt::print(to_print);
 }
 
+void process_new_frame(const cv::Mat &frame, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed) {
+    int pixels {frame.rows * frame.cols};
+    size_t diff {};
+    std::vector<std::vector<Pixel>> potential_new_curr_displayed {currently_displayed};
+    std::vector<std::vector<bool>> pixel_diffs;
+    pixel_diffs.reserve(potential_new_curr_displayed.size());
+
+    for (int row = 0; row < frame.rows; ++row) {
+        auto &curr_row {currently_displayed[row]};
+        std::vector<bool> row_pixel_diffs;
+        row_pixel_diffs.resize(frame.cols);
+        for (int col = 0; col < frame.cols; ++col) {
+            Pixel p {curr_row[col]};
+            Pixel new_p {frame.at<cv::Vec3b>(row, col)};
+
+            potential_new_curr_displayed[row][col] = new_p;
+
+            if (distance(p, new_p) <= threshold) {
+                continue;
+            }
+            
+            row_pixel_diffs[col] = true;
+            diff++;
+        }
+        pixel_diffs.push_back(row_pixel_diffs);
+    }
+
+    double ratio {diff / static_cast<double>(pixels)};
+    if (ratio > optimization_threshold) {
+        currently_displayed = potential_new_curr_displayed;
+        display_entire_frame(result, currently_displayed);
+    } else
+        for (int row = 0; row < frame.rows; ++row) {
+            for (int col = 0; col < frame.cols; ++col) {
+                Pixel new_p {frame.at<cv::Vec3b>(row, col)};
+
+                if (!pixel_diffs[row][col])
+                    continue;
+
+                update_pixel(new_p, col, row, result, currently_displayed);
+            }
+        }
+}
+
+void update_pixel(Pixel new_pixel, size_t x, size_t y, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed) {
+    currently_displayed[y][x] = new_pixel;
+
+    auto new_y {y / 2 + 2};
+    auto new_x {x + 1};
+    set_cursor(x, new_y, result);
+    bool is_odd_pixel {static_cast<bool>(y % 2)};
+    set_color(new_pixel, !is_odd_pixel, result);
+    if (is_odd_pixel)
+        set_color(currently_displayed[y - 1][x], true, result);
+    else if (y + 1 != currently_displayed.size())
+        set_color(currently_displayed[y + 1][x], false, result);
+    result += block;
+
+    if (x == currently_displayed[y].size() - 1) {
+        result.push_back(esc);
+        result += "[0m";
+    }
+}
+
+void display_entire_frame(std::string &result, const std::vector<std::vector<Pixel>> &currently_displayed) {
+    int y {0};
+    for (int y {0}; y < currently_displayed.size(); y += 2) {
+        const auto &top_row {currently_displayed.at(y)};
+        const auto &bottom_row {currently_displayed.at(y + 1)};
+        for (int x {0}; x < top_row.size(); x++) {
+            Pixel top_pixel {top_row.at(x)};
+            Pixel bottom_pixel {bottom_row.at(x)};
+            set_color(top_pixel, true, result);
+            set_color(bottom_pixel, false, result);
+            result += block;
+            if (x == top_row.size() - 1)
+                result += "\033[0m\n";
+        }
+    }
+}
 
 int main(int argc, char *argv[]) {
     std::string file;
@@ -90,10 +165,8 @@ int main(int argc, char *argv[]) {
     long long target_frame_time {static_cast<long long>(1.0 / static_cast<long long>(fps + 1) * 1000)};
     std::pair last_size {0, 0};
     int frames_to_drop {};
-
-#ifdef CURR_FRAME
-    CurrentFrame frame_drawer;
-#endif
+    
+    std::vector<std::vector<Pixel>> currently_displayed;
 
     for (int curr_frame {1}; curr_frame < total_frames; curr_frame++) {
         auto startTime = std::chrono::high_resolution_clock::now();
@@ -110,22 +183,18 @@ int main(int argc, char *argv[]) {
         data = resize_mat(data, height, width);
 
         display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, data.cols, data.rows);
-#ifdef CURR_FRAME
         std::string to_display;
         to_display.reserve(width * height * 3);
         if (curr_frame == 1 || data.cols != last_size.first || data.rows != last_size.second) {
             clear_screen();
-            frame_drawer.init_currently_displayed(data);
-            frame_drawer.display_entire_frame(to_display);
+            init_currently_displayed(data, currently_displayed);
+            display_entire_frame(to_display, currently_displayed);
             last_size.first = data.cols;
             last_size.second = data.rows;
         } else {
-            frame_drawer.process_new_frame(data, to_display);
+            process_new_frame(data, to_display, currently_displayed);
         }
-        fmt::detail::print(stdout, to_display);
-#else
-        draw_frame(data);
-#endif
+        fmt::print(stdout, to_display);
         auto endTime = std::chrono::high_resolution_clock::now();
         auto elapsedTimeMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
         int sleepTimeMs = target_frame_time - static_cast<int>(elapsedTimeMs);

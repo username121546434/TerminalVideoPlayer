@@ -156,7 +156,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="CurrentFrame.cpp" />
     <ClCompile Include="get_terminal_size.cpp" />
     <ClCompile Include="Pixel.cpp" />
     <ClCompile Include="TerminalVideoPlayer.cpp" />
@@ -166,7 +165,6 @@
     <None Include="vcpkg.json" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CurrentFrame.h" />
     <ClInclude Include="get_terminal_size.h" />
     <ClInclude Include="Pixel.h" />
     <ClInclude Include="utils.h" />
