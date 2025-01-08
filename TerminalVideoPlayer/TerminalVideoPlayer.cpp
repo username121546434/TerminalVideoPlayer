@@ -196,6 +196,10 @@ int main(int argc, char *argv[]) {
     }
 
     for (int curr_frame = 0; curr_frame < frame_list.size(); ++curr_frame) {
+        if (frames_to_drop > 0) {
+            frames_to_drop--;
+            continue;
+        }
         auto startTime = std::chrono::high_resolution_clock::now();
 
         Frame frame {frame_list.at(curr_frame)};
