@@ -1,4 +1,6 @@
 #include <iostream>
+#include <conio.h>
+#include <chrono>
 #include <iomanip>
 #include <string>
 #include <locale>
@@ -175,8 +177,22 @@ int main(int argc, char *argv[]) {
 
     auto [width, height] = get_terminal_size();
     height = height * 2 - 4;
+    clear_screen();
 
     for (int curr_frame = 1; curr_frame < total_frames; ++curr_frame) {
+        if (_kbhit()) {
+            char key = _getch();
+            if (key == ' ') {
+                // pause
+                while (true) {
+                    key = _getch();
+                    if (key == ' ')
+                        break;
+                    if (key == 'q')
+                        break;
+                }
+            }
+        }
         auto startTime = std::chrono::high_resolution_clock::now();
 
         Mat data;
@@ -187,8 +203,10 @@ int main(int argc, char *argv[]) {
 
         if (frames_to_drop > 0) {
             frames_to_drop--;
+            std::cout << "Dropping frame " << curr_frame << '\n';
             continue;
         }
+
         std::string to_display;
         to_display.reserve(width * height * 3);
         if (curr_frame == 1) {
@@ -214,7 +232,6 @@ int main(int argc, char *argv[]) {
             curr_fps = 1.0 / (elapsedTimeMs / 1000.0);
             frames_to_drop = fps / curr_fps;
         }
-
     }
 
     video.release();
