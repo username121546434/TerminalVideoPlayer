@@ -184,9 +184,6 @@ int main(int argc, char *argv[]) {
     int seek_frames = static_cast<int>(5 * fps); // Number of frames to seek for 5 seconds
 
     Frame currently_displayed;
-    std::map<int, Frame> frame_list;
-    std::map<int, cv::Mat> frame_data;
-    std::map<int, std::string> frame_buffer;
 
     auto [width, height] = get_terminal_size();
     height = height * 2 - 4;
@@ -220,7 +217,6 @@ int main(int argc, char *argv[]) {
         video.read(data);
 
         data = resize_mat(data, height, width);
-        frame_data[curr_frame] = data;
 
         if (frames_to_drop > 0) {
             frames_to_drop--;
@@ -236,8 +232,6 @@ int main(int argc, char *argv[]) {
         } else {
             process_new_frame(data, to_display, currently_displayed);
         }
-        frame_list[curr_frame] = currently_displayed;
-        frame_buffer[curr_frame] = to_display;
         const Frame &frame {currently_displayed};
 
         display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, frame[0].size(), frame.size());
