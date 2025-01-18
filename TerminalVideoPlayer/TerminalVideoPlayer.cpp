@@ -147,6 +147,18 @@ void display_entire_frame(std::string &result, const std::vector<std::vector<Pix
     }
 }
 
+void draw_progressbar(int current_frame, int total_frames, int width) {
+    int progress = static_cast<int>(static_cast<double>(current_frame) / total_frames * width);
+    std::cout << '[';
+    for (int i = 0; i < width - 2; ++i) {
+        if (i < progress)
+            std::cout << '=';
+        else
+            std::cout << ' ';
+    }
+    std::cout << ']';
+}
+
 int main(int argc, char *argv[]) {
     std::string file;
     std::setlocale(LC_ALL, "");
@@ -221,6 +233,9 @@ int main(int argc, char *argv[]) {
 
         display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, frame[0].size(), frame.size());
         fmt::print(stdout, to_display);
+
+        std::cout << "\033[0m\033[" << frame.size() - 1 << ";0H";
+        draw_progressbar(curr_frame, total_frames, width);
 
         auto endTime = std::chrono::high_resolution_clock::now();
         auto elapsedTimeMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
