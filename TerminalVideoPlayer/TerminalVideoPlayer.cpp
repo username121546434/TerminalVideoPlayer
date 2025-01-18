@@ -201,8 +201,6 @@ int main(int argc, char *argv[]) {
                     key = _getch();
                     if (key == ' ' || key == 'k')
                         break;
-                    if (key == 'q')
-                        break;
                 }
             } else if (key == 'l') {
                 // seek forward
