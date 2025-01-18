@@ -181,7 +181,8 @@ int main(int argc, char *argv[]) {
     long long target_frame_time {static_cast<long long>(1.0 / static_cast<long long>(fps + 1) * 1000)};
     std::pair last_size {0, 0};
     int frames_to_drop {0};
-    
+    int seek_frames = static_cast<int>(5 * fps); // Number of frames to seek for 5 seconds
+
     Frame currently_displayed;
     std::map<int, Frame> frame_list;
     std::map<int, cv::Mat> frame_data;
@@ -194,15 +195,25 @@ int main(int argc, char *argv[]) {
     for (int curr_frame = 1; curr_frame < total_frames; ++curr_frame) {
         if (_kbhit()) {
             char key = _getch();
-            if (key == ' ') {
+            if (key == ' ' || key == 'k') {
                 // pause
                 while (true) {
                     key = _getch();
-                    if (key == ' ')
+                    if (key == ' ' || key == 'k')
                         break;
                     if (key == 'q')
                         break;
                 }
+            } else if (key == 'l') {
+                // seek forward
+                curr_frame = std::min(curr_frame + seek_frames, static_cast<int>(total_frames) - 1);
+                video.set(VideoCaptureProperties::CAP_PROP_POS_FRAMES, curr_frame);
+                continue;
+            } else if (key == 'j') {
+                // seek backward
+                curr_frame = std::max(curr_frame - seek_frames, 1);
+                video.set(VideoCaptureProperties::CAP_PROP_POS_FRAMES, curr_frame);
+                continue;
             }
         }
         auto startTime = std::chrono::high_resolution_clock::now();
