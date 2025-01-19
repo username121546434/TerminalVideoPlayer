@@ -131,10 +131,9 @@ void update_pixel(Pixel new_pixel, size_t x, size_t y, std::string &result, std:
 }
 
 void display_entire_frame(std::string &result, const std::vector<std::vector<Pixel>> &currently_displayed) {
-    int y {0};
-    for (int y {0}; y < currently_displayed.size(); y += 2) {
+    for (int y = 0; y < currently_displayed.size(); y += 2) {
         const auto &top_row {currently_displayed.at(y)};
-        const auto &bottom_row {currently_displayed.at(y + 1)};
+        const auto &bottom_row {y + 1 < currently_displayed.size() ? currently_displayed.at(y + 1) : top_row};
         for (int x {0}; x < top_row.size(); x++) {
             Pixel top_pixel {top_row.at(x)};
             Pixel bottom_pixel {bottom_row.at(x)};
@@ -185,9 +184,10 @@ int main(int argc, char *argv[]) {
 
     Frame currently_displayed;
 
-    auto [width, height] = get_terminal_size();
-    height = height * 2 - 4;
     clear_screen();
+
+    int last_width {0};
+    int last_height {0};
 
     for (int curr_frame = 1; curr_frame < total_frames; ++curr_frame) {
         if (_kbhit()) {
@@ -216,6 +216,9 @@ int main(int argc, char *argv[]) {
         Mat data;
         video.read(data);
 
+        auto [width, height] = get_terminal_size();
+        height = height * 2 - 4;
+
         data = resize_mat(data, height, width);
 
         if (frames_to_drop > 0) {
@@ -225,9 +228,12 @@ int main(int argc, char *argv[]) {
 
         std::string to_display;
         to_display.reserve(width * height * 3);
-        if (curr_frame == 1) {
+        if (curr_frame == 1 || width != last_width || height != last_height) {
+            currently_displayed.clear();
             init_currently_displayed(data, currently_displayed);
             display_entire_frame(to_display, currently_displayed);
+            last_height = height;
+            last_width = width;
         } else {
             process_new_frame(data, to_display, currently_displayed);
         }
