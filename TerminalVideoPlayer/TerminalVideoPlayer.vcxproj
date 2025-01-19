@@ -165,7 +165,9 @@
     <None Include="vcpkg.json" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AudioPlayer.h" />
     <ClInclude Include="get_terminal_size.h" />
+    <ClInclude Include="miniaudio.h" />
     <ClInclude Include="Pixel.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>

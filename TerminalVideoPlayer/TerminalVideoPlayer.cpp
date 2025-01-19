@@ -1,4 +1,5 @@
 #include <iostream>
+#include "AudioPlayer.h"
 #include <conio.h>
 #include <chrono>
 #include <iomanip>
@@ -13,6 +14,8 @@
 constexpr const char *block = u8"\u2584"; // ? character
 constexpr double threshold = 25.0;
 constexpr double optimization_threshold = 0.40;
+
+constexpr int skip_seconds = 5;
 
 std::array<std::string_view, 8> block_chars {
     u8" ", u8"\u258F", u8"\u258E", u8"\u258D", u8"\u258C", u8"\u258B", u8"\u258A", u8"\u2589"
@@ -182,6 +185,11 @@ int main(int argc, char *argv[]) {
         std::cout << "Enter a video file: ";
         std::getline(std::cin, file);
     }
+
+    // convert video to .wav file
+    std::system(fmt::format("ffmpeg -i \"{}\" output_audio.wav", file).c_str());
+    AudioPlayer audio_player {"output_audio.wav", skip_seconds};
+
     VideoCapture video {file, 0};
     if (!video.isOpened()) {
         std::cerr << "Error opening file " << file << std::endl;
@@ -195,23 +203,29 @@ int main(int argc, char *argv[]) {
     long long target_frame_time {static_cast<long long>(1.0 / static_cast<long long>(fps + 1) * 1000)};
     std::pair last_size {0, 0};
     int frames_to_drop {0};
-    int seek_frames = static_cast<int>(5 * fps); // Number of frames to seek for 5 seconds
+    int seek_frames = static_cast<int>(skip_seconds * fps); // Number of frames to seek for 5 seconds
+
+    audio_player.get_sample_rate();
 
     Frame currently_displayed;
 
     int last_width {0};
     int last_height {0};
 
+    audio_player.play();
+
     for (int curr_frame = 1; curr_frame < total_frames; ++curr_frame) {
         if (_kbhit()) {
             char key = _getch();
             if (key == ' ' || key == 'k') {
                 // pause
+                audio_player.pause();
                 while (true) {
                     key = _getch();
                     if (key == ' ' || key == 'k')
                         break;
                 }
+                audio_player.play();
             } else if (key == 'l') {
                 // seek forward
                 curr_frame = std::min(curr_frame + seek_frames, static_cast<int>(total_frames) - 1);
@@ -270,8 +284,13 @@ int main(int argc, char *argv[]) {
             curr_fps = 1.0 / (elapsedTimeMs / 1000.0);
             frames_to_drop = fps / curr_fps;
         }
+
+        if (curr_frame % 5 == 0)
+            audio_player.seek_to(curr_frame / fps);
     }
 
     video.release();
     fmt::print("\033[0m"); // resets terminal color so that the user can continue with the same window
+
+    std::system("rm output_audio.wav");
 }
