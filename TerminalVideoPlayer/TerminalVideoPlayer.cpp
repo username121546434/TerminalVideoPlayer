@@ -14,6 +14,12 @@ constexpr const char *block = u8"\u2584"; // ? character
 constexpr double threshold = 25.0;
 constexpr double optimization_threshold = 0.40;
 
+std::array<std::string_view, 8> block_chars {
+    u8" ", u8"\u258F", u8"\u258E", u8"\u258D", u8"\u258C", u8"\u258B", u8"\u258A", u8"\u2589"
+};
+
+constexpr const char *full_block = u8"\u2588";
+
 typedef std::vector<std::vector<Pixel>> Frame;
 
 using namespace cv;
@@ -147,15 +153,24 @@ void display_entire_frame(std::string &result, const std::vector<std::vector<Pix
 }
 
 void draw_progressbar(int current_frame, int total_frames, int width) {
-    int progress = static_cast<int>(static_cast<double>(current_frame) / total_frames * width);
-    std::cout << '[';
-    for (int i = 0; i < width - 2; ++i) {
-        if (i < progress)
-            std::cout << '=';
+    double progress = (static_cast<double>(current_frame) / total_frames);
+    int whole_width = std::floor(progress * width);
+    double remainder_width = fmod(progress * width, 1.0);
+    int part_width = std::floor(remainder_width * 8);
+
+    const auto &partial_block_char = block_chars[part_width];
+
+    std::string to_print {"\033[31m"};
+    to_print.reserve(width * 4);
+    for (int i = 0; i < width; ++i) {
+        if (i < whole_width)
+            to_print += full_block;
+        else if (i == whole_width)
+            to_print += partial_block_char;
         else
-            std::cout << ' ';
+            to_print.push_back(' ');
     }
-    std::cout << ']';
+    fmt::print(to_print);
 }
 
 int main(int argc, char *argv[]) {
@@ -183,8 +198,6 @@ int main(int argc, char *argv[]) {
     int seek_frames = static_cast<int>(5 * fps); // Number of frames to seek for 5 seconds
 
     Frame currently_displayed;
-
-    clear_screen();
 
     int last_width {0};
     int last_height {0};
@@ -229,7 +242,9 @@ int main(int argc, char *argv[]) {
         std::string to_display;
         to_display.reserve(width * height * 3);
         if (curr_frame == 1 || width != last_width || height != last_height) {
+            clear_screen();
             currently_displayed.clear();
+
             init_currently_displayed(data, currently_displayed);
             display_entire_frame(to_display, currently_displayed);
             last_height = height;
