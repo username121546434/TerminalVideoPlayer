@@ -220,7 +220,6 @@ int main(int argc, char *argv[]) {
 
         if (frames_to_drop > 0) {
             frames_to_drop--;
-            std::cout << "Dropping frame " << curr_frame << '\n';
             continue;
         }
 
