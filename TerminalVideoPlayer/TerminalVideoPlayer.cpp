@@ -11,6 +11,30 @@
 #include <fmt/core.h>
 #include <map>
 
+#ifdef _WIN32
+#include <windows.h>
+// Function to enable virtual terminal processing
+void EnableVirtualTerminalProcessing() {
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hOut == INVALID_HANDLE_VALUE) {
+        std::cerr << "Error: Invalid handle" << std::endl;
+        return;
+    }
+
+    DWORD dwMode = 0;
+    if (!GetConsoleMode(hOut, &dwMode)) {
+        std::cerr << "Error: Unable to get console mode" << std::endl;
+        return;
+    }
+
+    // Enable the virtual terminal processing mode
+    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    if (!SetConsoleMode(hOut, dwMode)) {
+        std::cerr << "Error: Unable to set console mode" << std::endl;
+    }
+}
+#endif
+
 constexpr const char *block = u8"\u2584"; // ? character
 constexpr double threshold = 25.0;
 constexpr double optimization_threshold = 0.40;
@@ -179,6 +203,11 @@ void draw_progressbar(int current_frame, int total_frames, int width) {
 }
 
 int main(int argc, char *argv[]) {
+
+#ifdef _WIN32
+    EnableVirtualTerminalProcessing();
+#endif
+
     std::string file;
     std::setlocale(LC_ALL, "");
     
