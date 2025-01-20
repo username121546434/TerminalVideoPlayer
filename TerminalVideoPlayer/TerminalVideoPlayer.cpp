@@ -226,6 +226,10 @@ int main(int argc, char *argv[]) {
                     key = _getch();
                     if (key == ' ' || key == 'k')
                         break;
+                    else if (key == 'q') {
+                        curr_frame = total_frames;
+                        break;
+                    }
                 }
                 audio_player.play();
             } else if (key == 'l') {
