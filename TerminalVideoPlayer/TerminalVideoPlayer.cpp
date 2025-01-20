@@ -15,6 +15,8 @@ constexpr const char *block = u8"\u2584"; // ? character
 constexpr double threshold = 25.0;
 constexpr double optimization_threshold = 0.40;
 
+constexpr std::string_view audio_file_name = "output_audio.wav";
+
 constexpr int skip_seconds = 5;
 
 std::array<std::string_view, 8> block_chars {
@@ -187,8 +189,8 @@ int main(int argc, char *argv[]) {
     }
 
     // convert video to .wav file
-    std::system(fmt::format("ffmpeg -i \"{}\" output_audio.wav", file).c_str());
-    AudioPlayer audio_player {"output_audio.wav", skip_seconds};
+    std::system(fmt::format("ffmpeg -i \"{}\" {}", file, audio_file_name).c_str());
+    AudioPlayer audio_player {audio_file_name.data(), skip_seconds};
 
     VideoCapture video {file, 0};
     if (!video.isOpened()) {
@@ -292,5 +294,9 @@ int main(int argc, char *argv[]) {
     video.release();
     fmt::print("\033[0m"); // resets terminal color so that the user can continue with the same window
 
-    std::system("rm output_audio.wav");
+#ifdef _WIN32
+    std::system(fmt::format("del {}", audio_file_name).c_str());
+#else
+    std::system(fmt::format("rm {}", audio_file_name).c_str());
+#endif
 }
