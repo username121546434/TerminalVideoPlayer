@@ -181,6 +181,9 @@ void draw_progressbar(int current_frame, int total_frames, int width) {
 int main(int argc, char *argv[]) {
     std::string file;
     std::setlocale(LC_ALL, "");
+    
+    std::cout << "\033[?1049h"; // save screen
+
     if (argc > 1)
         file = argv[1];
     else {
@@ -304,4 +307,6 @@ int main(int argc, char *argv[]) {
 #else
     std::system(fmt::format("rm {}", audio_file_name).c_str());
 #endif
+
+    std::cout << "\033[?1049l"; // restore screen
 }
