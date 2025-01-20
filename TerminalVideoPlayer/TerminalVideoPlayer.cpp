@@ -238,7 +238,8 @@ int main(int argc, char *argv[]) {
                 curr_frame = std::max(curr_frame - seek_frames, 1);
                 video.set(VideoCaptureProperties::CAP_PROP_POS_FRAMES, curr_frame);
                 continue;
-            }
+            } else if (key == 'q')
+                break;
         }
         auto startTime = std::chrono::high_resolution_clock::now();
 
