@@ -84,9 +84,9 @@ void display_status_bar(int curr_frame, int total_frames, int duration_seconds, 
               << '\n';
 }
 
-void update_pixel(Pixel new_pixel, size_t x, size_t y, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed);
-void display_entire_frame(std::string &result, const std::vector<std::vector<Pixel>> &currently_displayed);
-void process_new_frame(const cv::Mat &frame, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed);
+void update_pixel(Pixel new_pixel, size_t x, size_t y, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed, int padding_left);
+void display_entire_frame(std::string &result, const std::vector<std::vector<Pixel>> &currently_displayed, const std::string &left_padding);
+void process_new_frame(const cv::Mat &frame, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed, const std::string &left_padding);
 
 void init_currently_displayed(const cv::Mat &start_frame, std::vector<std::vector<Pixel>> &currently_displayed) {
     currently_displayed.resize(start_frame.rows);
@@ -101,7 +101,7 @@ void init_currently_displayed(const cv::Mat &start_frame, std::vector<std::vecto
     }
 }
 
-void process_new_frame(const cv::Mat &frame, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed) {
+void process_new_frame(const cv::Mat &frame, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed, const std::string &left_padding) {
     int pixels {frame.rows * frame.cols};
     size_t diff {};
     std::vector<std::vector<Pixel>> potential_new_curr_displayed {currently_displayed};
@@ -131,7 +131,7 @@ void process_new_frame(const cv::Mat &frame, std::string &result, std::vector<st
     double ratio {diff / static_cast<double>(pixels)};
     if (ratio > optimization_threshold) {
         currently_displayed = potential_new_curr_displayed;
-        display_entire_frame(result, currently_displayed);
+        display_entire_frame(result, currently_displayed, left_padding);
     } else
         for (int row = 0; row < frame.rows; ++row) {
             for (int col = 0; col < frame.cols; ++col) {
@@ -140,17 +140,17 @@ void process_new_frame(const cv::Mat &frame, std::string &result, std::vector<st
                 if (!pixel_diffs[row][col])
                     continue;
 
-                update_pixel(new_p, col, row, result, currently_displayed);
+                update_pixel(new_p, col, row, result, currently_displayed, left_padding.size());
             }
         }
 }
 
-void update_pixel(Pixel new_pixel, size_t x, size_t y, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed) {
+void update_pixel(Pixel new_pixel, size_t x, size_t y, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed, int padding_left) {
     currently_displayed[y][x] = new_pixel;
 
     auto new_y {y / 2 + 2};
     auto new_x {x + 1};
-    set_cursor(x, new_y, result);
+    set_cursor(x + padding_left, new_y, result);
     bool is_odd_pixel {static_cast<bool>(y % 2)};
     set_color(new_pixel, !is_odd_pixel, result);
     if (is_odd_pixel)
@@ -165,10 +165,11 @@ void update_pixel(Pixel new_pixel, size_t x, size_t y, std::string &result, std:
     }
 }
 
-void display_entire_frame(std::string &result, const std::vector<std::vector<Pixel>> &currently_displayed) {
+void display_entire_frame(std::string &result, const std::vector<std::vector<Pixel>> &currently_displayed, const std::string &left_padding) {
     for (int y = 0; y < currently_displayed.size(); y += 2) {
         const auto &top_row {currently_displayed.at(y)};
         const auto &bottom_row {y + 1 < currently_displayed.size() ? currently_displayed.at(y + 1) : top_row};
+        result += left_padding;
         for (int x {0}; x < top_row.size(); x++) {
             Pixel top_pixel {top_row.at(x)};
             Pixel bottom_pixel {bottom_row.at(x)};
@@ -246,6 +247,8 @@ int main(int argc, char *argv[]) {
     int last_width {0};
     int last_height {0};
 
+    std::string left_padding;
+
     audio_player.play();
 
     for (int curr_frame = 1; curr_frame < total_frames; ++curr_frame) {
@@ -287,6 +290,8 @@ int main(int argc, char *argv[]) {
 
         data = resize_mat(data, height, width);
 
+        int padding_left = (width - data.cols) / 2;
+
         if (frames_to_drop > 1) {
             display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, currently_displayed[0].size(), currently_displayed.size(), frames_to_drop);
             frames_to_drop--;
@@ -296,15 +301,16 @@ int main(int argc, char *argv[]) {
         std::string to_display;
         to_display.reserve(width * height * 3);
         if (curr_frame == 1 || width != last_width || height != last_height) {
+            left_padding.resize(padding_left, ' ');
             clear_screen();
             currently_displayed.clear();
 
             init_currently_displayed(data, currently_displayed);
-            display_entire_frame(to_display, currently_displayed);
+            display_entire_frame(to_display, currently_displayed, left_padding);
             last_height = height;
             last_width = width;
         } else {
-            process_new_frame(data, to_display, currently_displayed);
+            process_new_frame(data, to_display, currently_displayed, left_padding);
         }
         const Frame &frame {currently_displayed};
 
