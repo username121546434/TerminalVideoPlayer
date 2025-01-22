@@ -73,14 +73,14 @@ std::string format_seconds(int s) {
     return formatted.str();
 }
 
-void display_status_bar(int curr_frame, int total_frames, int duration_seconds, int fps, double curr_fps, int width, int height) {
+void display_status_bar(int curr_frame, int total_frames, int duration_seconds, int fps, double curr_fps, int width, int height, double frames_to_drop) {
     int seconds_watched {curr_frame / fps};
     std::string result;
     set_cursor(0, 0, result);
     std::cout << result;
     std::cout << "\033[0mFrame " << curr_frame << "/" << total_frames << " " << width << "x" << height << " "
               << format_seconds(seconds_watched) << "/" << format_seconds(duration_seconds) << " "
-              << std::setprecision(2) << std::fixed << curr_fps << "fps"
+              << std::setprecision(2) << std::fixed << curr_fps << "fps, frames to drop: " << frames_to_drop
               << '\n';
 }
 
@@ -236,7 +236,7 @@ int main(int argc, char *argv[]) {
     double curr_fps {};
     long long target_frame_time {static_cast<long long>(1.0 / static_cast<long long>(fps + 1) * 1000)};
     std::pair last_size {0, 0};
-    int frames_to_drop {0};
+    double frames_to_drop {};
     int seek_frames = static_cast<int>(skip_seconds * fps); // Number of frames to seek for 5 seconds
 
     audio_player.get_sample_rate();
@@ -287,7 +287,8 @@ int main(int argc, char *argv[]) {
 
         data = resize_mat(data, height, width);
 
-        if (frames_to_drop > 0) {
+        if (frames_to_drop > 1) {
+            display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, currently_displayed[0].size(), currently_displayed.size(), frames_to_drop);
             frames_to_drop--;
             continue;
         }
@@ -307,7 +308,7 @@ int main(int argc, char *argv[]) {
         }
         const Frame &frame {currently_displayed};
 
-        display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, frame[0].size(), frame.size());
+        display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, frame[0].size(), frame.size(), frames_to_drop);
         fmt::print(stdout, to_display);
 
         std::cout << "\033[0m\033[" << frame.size() - 1 << ";0H";
@@ -321,7 +322,7 @@ int main(int argc, char *argv[]) {
             std::this_thread::sleep_for(std::chrono::milliseconds(sleepTimeMs));
         } else {
             curr_fps = 1.0 / (elapsedTimeMs / 1000.0);
-            frames_to_drop = fps / curr_fps;
+            frames_to_drop += fps / curr_fps;
         }
 
         if (curr_frame % 5 == 0)
