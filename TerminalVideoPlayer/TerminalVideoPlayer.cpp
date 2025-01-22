@@ -322,7 +322,7 @@ int main(int argc, char *argv[]) {
             std::this_thread::sleep_for(std::chrono::milliseconds(sleepTimeMs));
         } else {
             curr_fps = 1.0 / (elapsedTimeMs / 1000.0);
-            frames_to_drop += fps / curr_fps;
+            frames_to_drop += fps / curr_fps + 1;
         }
 
         if (curr_frame % 5 == 0)
