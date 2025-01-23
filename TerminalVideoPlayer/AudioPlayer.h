@@ -51,20 +51,6 @@ public:
         ma_sound_stop(&sound);
     }
 
-    void seekForward5seconds() {
-        ma_uint64 currentFrame;
-        ma_sound_get_cursor_in_pcm_frames(&sound, &currentFrame);
-        ma_uint64 newFrame = currentFrame + seek_amount_in_frames;
-        ma_sound_seek_to_pcm_frame(&sound, newFrame);
-    }
-
-    void seekBackward5seconds() {
-        ma_uint64 currentFrame;
-        ma_sound_get_cursor_in_pcm_frames(&sound, &currentFrame);
-        ma_uint64 newFrame = (currentFrame > seek_amount_in_frames) ? currentFrame - seek_amount_in_frames : 0;
-        ma_sound_seek_to_pcm_frame(&sound, newFrame);
-    }
-
     inline ma_uint32 get_sample_rate() const {
         return sample_rate;
     }
@@ -72,6 +58,12 @@ public:
     void seek_to(double seconds) {
         ma_uint64 newFrame = seconds * static_cast<ma_uint64>(sample_rate);
         ma_sound_seek_to_pcm_frame(&sound, newFrame);
+    }
+
+    inline float get_current_seconds() {
+        float currentFrame;
+        ma_sound_get_cursor_in_seconds(&sound, &currentFrame);
+        return currentFrame;
     }
 
 private:

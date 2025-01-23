@@ -271,11 +271,13 @@ int main(int argc, char *argv[]) {
                 // seek forward
                 curr_frame = std::min(curr_frame + seek_frames, static_cast<int>(total_frames) - 1);
                 video.set(VideoCaptureProperties::CAP_PROP_POS_FRAMES, curr_frame);
+                audio_player.seek_to(curr_frame / fps);
                 continue;
             } else if (key == 'j') {
                 // seek backward
                 curr_frame = std::max(curr_frame - seek_frames, 1);
                 video.set(VideoCaptureProperties::CAP_PROP_POS_FRAMES, curr_frame);
+                audio_player.seek_to(curr_frame / fps);
                 continue;
             } else if (key == 'q')
                 break;
@@ -331,8 +333,13 @@ int main(int argc, char *argv[]) {
             frames_to_drop += fps / curr_fps + 1;
         }
 
-        if (curr_frame % 5 == 0)
-            audio_player.seek_to(curr_frame / fps);
+        if (curr_frame % (int)fps == 0) {
+            double curr_second = audio_player.get_current_seconds();
+            if (std::abs(curr_second - (curr_frame / fps)) >= 1.0) {
+                curr_frame = static_cast<int>(curr_second * fps);
+                video.set(VideoCaptureProperties::CAP_PROP_POS_FRAMES, curr_frame);
+            }
+        }
     }
 
     video.release();
