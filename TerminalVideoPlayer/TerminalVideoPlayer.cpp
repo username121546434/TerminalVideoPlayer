@@ -242,6 +242,10 @@ int main(int argc, char *argv[]) {
 
     audio_player.get_sample_rate();
 
+#ifndef PROD
+    double avg_fps {};
+#endif
+
     Frame currently_displayed;
 
     int last_width {0};
@@ -331,6 +335,13 @@ int main(int argc, char *argv[]) {
             frames_to_drop += fps / curr_fps + 1;
         }
 
+#ifndef PROD
+        if (curr_frame == 1)
+            avg_fps = curr_fps;
+        else
+            avg_fps = (avg_fps * (curr_frame - 1) + curr_fps) / curr_frame;
+#endif
+
         if (curr_frame % 5 == 0)
             audio_player.seek_to(curr_frame / fps);
     }
@@ -345,4 +356,6 @@ int main(int argc, char *argv[]) {
 #endif
 
     std::cout << "\033[?1049l"; // restore screen
+
+    std::cout << "Average FPS: " << avg_fps << std::endl;
 }
