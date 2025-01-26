@@ -235,6 +235,7 @@ int main(int argc, char *argv[]) {
     bool should_redraw = false;
 
     std::string left_padding;
+    std::string to_display;
 
     std::chrono::nanoseconds last_elapsed_time;
 
@@ -289,9 +290,8 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        std::string to_display;
-        to_display.reserve(width * height * 3);
         if (curr_frame == 1 || width != last_width || height != last_height || should_redraw) {
+        to_display.reserve(width * height * 3);
             left_padding.resize(padding_left, ' ');
             clear_screen();
             currently_displayed.clear();
@@ -318,6 +318,8 @@ int main(int argc, char *argv[]) {
 
         if (curr_frame % 5 == 0)
             audio_player.seek_to(curr_frame / fps);
+
+        to_display.clear();
 
         auto endTime = std::chrono::steady_clock::now();
         auto elapsed_time_ns = (endTime - startTime);
