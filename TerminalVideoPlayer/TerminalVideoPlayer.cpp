@@ -230,6 +230,8 @@ int main(int argc, char *argv[]) {
     int last_width {0};
     int last_height {0};
 
+    bool should_redraw = false;
+
     std::string left_padding;
 
     audio_player.play();
@@ -262,6 +264,8 @@ int main(int argc, char *argv[]) {
                 continue;
             } else if (key == 'q')
                 break;
+            else if (key == 'r')
+                should_redraw = true;
         }
         auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -283,7 +287,7 @@ int main(int argc, char *argv[]) {
 
         std::string to_display;
         to_display.reserve(width * height * 3);
-        if (curr_frame == 1 || width != last_width || height != last_height) {
+        if (curr_frame == 1 || width != last_width || height != last_height || should_redraw) {
             left_padding.resize(padding_left, ' ');
             clear_screen();
             currently_displayed.clear();
@@ -292,6 +296,7 @@ int main(int argc, char *argv[]) {
             display_entire_frame(to_display, currently_displayed, left_padding);
             last_height = height;
             last_width = width;
+            should_redraw = false;
         } else {
             process_new_frame(data, to_display, currently_displayed, left_padding);
         }
