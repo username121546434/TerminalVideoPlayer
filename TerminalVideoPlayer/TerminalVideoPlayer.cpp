@@ -291,7 +291,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (curr_frame == 1 || width != last_width || height != last_height || should_redraw) {
-        to_display.reserve(width * height * 3);
+            to_display.reserve(width * height * 3);
             left_padding.resize(padding_left, ' ');
             clear_screen();
             currently_displayed.clear();
@@ -330,7 +330,7 @@ int main(int argc, char *argv[]) {
             auto start = std::chrono::steady_clock::now();
             std::this_thread::sleep_for(sleep_time);
             auto actual_sleep_time = std::chrono::steady_clock::now() - start;
-            next_target_frame_time -= actual_sleep_time - sleep_time;
+            next_target_frame_time = target_frame_time - (actual_sleep_time - sleep_time);
         } else {
             curr_fps = 1.0 / ((double)elapsed_time_ns.count() / nano_seconds_in_second);
             frames_to_drop += fps / curr_fps + 1;
