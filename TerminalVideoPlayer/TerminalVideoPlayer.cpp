@@ -37,7 +37,6 @@ void EnableVirtualTerminalProcessing() {
 
 constexpr const char *block = u8"\u2584"; // ? character
 constexpr double threshold = 25.0;
-constexpr double optimization_threshold = 0.40;
 
 constexpr std::string_view audio_file_name = "output_audio.wav";
 
@@ -84,9 +83,24 @@ void display_status_bar(int curr_frame, int total_frames, int duration_seconds, 
               << '\n';
 }
 
-void update_pixel(TerminalPixel new_pixel, size_t x, size_t y, std::string &result, Frame &currently_displayed, int padding_left);
-void display_entire_frame(std::string &result, const Frame &currently_displayed, const std::string &left_padding);
-void process_new_frame(const cv::Mat &frame, std::string &result, Frame &currently_displayed, const std::string &left_padding);
+inline void print_pixel(TerminalPixel pixel, size_t x, size_t y, std::string &result, const Frame &currently_displayed) {
+    set_color(pixel.top_pixel, true, result);
+    set_color(pixel.bottom_pixel, false, result);
+
+    result += block;
+
+    if (x == currently_displayed[y].size() - 1) {
+        result.push_back(esc);
+        result += "[0m";
+    }
+}
+
+void update_pixel(TerminalPixel new_pixel, bool move_cursor, size_t x, size_t y, std::string &result, Frame &currently_displayed, int padding_left) {
+    currently_displayed[y][x] = new_pixel;
+    if (move_cursor)
+        set_cursor(x + padding_left, y + 2, result);
+    print_pixel(new_pixel, x, y, result, currently_displayed);
+}
 
 void init_currently_displayed(const cv::Mat &start_frame, Frame &currently_displayed) {
     currently_displayed.reserve(start_frame.rows);
@@ -106,18 +120,11 @@ void init_currently_displayed(const cv::Mat &start_frame, Frame &currently_displ
 
 void process_new_frame(const cv::Mat &frame, std::string &result, Frame &currently_displayed, const std::string &left_padding) {
     int pixels {frame.rows * frame.cols};
-    size_t diff {};
 
-    Frame potential_new_curr_displayed;
-    init_currently_displayed(frame, potential_new_curr_displayed);
-
-    std::vector<std::vector<bool>> pixel_diffs;
-    pixel_diffs.reserve(potential_new_curr_displayed.size());
+    bool last_pixel_changed {false};
 
     for (size_t row = 0; row < currently_displayed.size(); row++) {
         const auto &curr_row {currently_displayed[row]};
-        std::vector<bool> row_pixel_diffs;
-        row_pixel_diffs.resize(frame.cols);
         for (int col = 0; col < frame.cols; ++col) {
             TerminalPixel p {curr_row[col]};
 
@@ -132,63 +139,27 @@ void process_new_frame(const cv::Mat &frame, std::string &result, Frame &current
             if (distance(p.top_pixel, new_p.top_pixel) >= threshold ||
                 distance(p.bottom_pixel, new_p.bottom_pixel) >= threshold
             ) {
-                row_pixel_diffs[col] = true;
-                diff++;
-            }
+                update_pixel(new_p, (!last_pixel_changed || (col == 0)), col, row, result, currently_displayed, left_padding.size());
+                last_pixel_changed = true;
+            } else
+                last_pixel_changed = false;
         }
-        pixel_diffs.push_back(row_pixel_diffs);
-    }
-
-    double ratio {diff / static_cast<double>(pixels)};
-    if (ratio > optimization_threshold) {
-        currently_displayed = potential_new_curr_displayed;
-        display_entire_frame(result, currently_displayed, left_padding);
-    } else
-        for (size_t row = 0; row < currently_displayed.size(); row++) {
-            for (int col = 0; col < frame.cols; ++col) {
-                Pixel top_new_pixel {frame.at<cv::Vec3b>(row * 2, col)};
-                Pixel bottom_new_pixel;
-                if (row * 2 + 1 < frame.rows)
-                    bottom_new_pixel = frame.at<cv::Vec3b>(row * 2 + 1, col);
-                else
-                    bottom_new_pixel = top_new_pixel;
-                TerminalPixel new_p {top_new_pixel, bottom_new_pixel};
-
-                if (!pixel_diffs[row][col])
-                    continue;
-
-                update_pixel(new_p, col, row, result, currently_displayed, left_padding.size());
-            }
-        }
-}
-
-void update_pixel(TerminalPixel new_pixel, size_t x, size_t y, std::string &result, Frame &currently_displayed, int padding_left) {
-    currently_displayed[y][x] = new_pixel;
-
-    set_cursor(x + padding_left, y + 2, result);
-    set_color(new_pixel.top_pixel, true, result);
-    set_color(new_pixel.bottom_pixel, false, result);
-
-    result += block;
-
-    if (x == currently_displayed[y].size() - 1) {
-        result.push_back(esc);
-        result += "[0m";
     }
 }
 
 void display_entire_frame(std::string &result, const Frame &currently_displayed, const std::string &left_padding) {
+    size_t y = 0;
     for (const std::vector<TerminalPixel> &row : currently_displayed) {
         result += left_padding;
-        size_t x {};
+        size_t x = 0;
         for (TerminalPixel pixel : row) {
-            set_color(pixel.top_pixel, true, result);
-            set_color(pixel.bottom_pixel, false, result);
-            result += block;
-            if (x == row.size() - 1)
-                result += "\033[0m\n";
+            print_pixel(pixel, x, y, result, currently_displayed);
+            if (x == row.size() - 1) {
+                result.push_back('\n');
+            }
             x++;
         }
+        y++;
     }
 }
 
