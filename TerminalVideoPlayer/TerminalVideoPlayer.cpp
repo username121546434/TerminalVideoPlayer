@@ -41,6 +41,7 @@ constexpr double threshold = 25.0;
 constexpr std::string_view audio_file_name = "output_audio.wav";
 
 constexpr int skip_seconds = 5;
+constexpr long long nano_seconds_in_second = 1'000'000'000;
 
 std::array<std::string_view, 8> block_chars {
     u8" ", u8"\u258F", u8"\u258E", u8"\u258D", u8"\u258C", u8"\u258B", u8"\u258A", u8"\u2589"
@@ -216,7 +217,8 @@ int main(int argc, char *argv[]) {
     double fps {video.get(VideoCaptureProperties::CAP_PROP_FPS)};
     double duration_seconds {total_frames / fps};
     double curr_fps {};
-    long long target_frame_time {static_cast<long long>(1.0 / static_cast<long long>(fps + 1) * 1000)};
+    const std::chrono::nanoseconds target_frame_time {static_cast<long long>((1.0 / fps) * nano_seconds_in_second)};
+    auto next_target_frame_time = target_frame_time;
     std::pair last_size {0, 0};
     double frames_to_drop {};
     int seek_frames = static_cast<int>(skip_seconds * fps); // Number of frames to seek for 5 seconds
@@ -233,6 +235,8 @@ int main(int argc, char *argv[]) {
     bool should_redraw = false;
 
     std::string left_padding;
+
+    std::chrono::nanoseconds last_elapsed_time;
 
     audio_player.play();
 
@@ -267,7 +271,7 @@ int main(int argc, char *argv[]) {
             else if (key == 'r')
                 should_redraw = true;
         }
-        auto startTime = std::chrono::high_resolution_clock::now();
+        auto startTime = std::chrono::steady_clock::now();
 
         Mat data;
         video.read(data);
@@ -300,24 +304,12 @@ int main(int argc, char *argv[]) {
         } else {
             process_new_frame(data, to_display, currently_displayed, left_padding);
         }
-        const Frame &frame {currently_displayed};
 
-        display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, frame[0].size(), frame.size(), frames_to_drop);
+        display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, currently_displayed[0].size(), currently_displayed.size() * 2, frames_to_drop);
         fmt::print(stdout, to_display);
 
         std::cout << "\033[0m\033[" << height - 1 << ";0H";
         draw_progressbar(curr_frame, total_frames, width);
-
-        auto endTime = std::chrono::high_resolution_clock::now();
-        auto elapsedTimeMs = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
-        int sleepTimeMs = target_frame_time - static_cast<int>(elapsedTimeMs);
-        if (sleepTimeMs > 0) {
-            curr_fps = fps;
-            std::this_thread::sleep_for(std::chrono::milliseconds(sleepTimeMs));
-        } else {
-            curr_fps = 1.0 / (elapsedTimeMs / 1000.0);
-            frames_to_drop += fps / curr_fps + 1;
-        }
 
         if (curr_frame == 1)
             avg_fps = curr_fps;
@@ -326,6 +318,22 @@ int main(int argc, char *argv[]) {
 
         if (curr_frame % 5 == 0)
             audio_player.seek_to(curr_frame / fps);
+
+        auto endTime = std::chrono::steady_clock::now();
+        auto elapsed_time_ns = (endTime - startTime);
+        last_elapsed_time = elapsed_time_ns;
+        auto sleep_time = next_target_frame_time - elapsed_time_ns;
+        if (sleep_time.count() > 0) {
+            curr_fps = fps;
+            auto start = std::chrono::steady_clock::now();
+            std::this_thread::sleep_for(sleep_time);
+            auto actual_sleep_time = std::chrono::steady_clock::now() - start;
+            next_target_frame_time -= actual_sleep_time - sleep_time;
+        } else {
+            curr_fps = 1.0 / ((double)elapsed_time_ns.count() / nano_seconds_in_second);
+            frames_to_drop += fps / curr_fps + 1;
+            next_target_frame_time = target_frame_time;
+        }
     }
 
     video.release();
