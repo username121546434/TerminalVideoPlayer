@@ -49,7 +49,7 @@ std::array<std::string_view, 8> block_chars {
 
 constexpr const char *full_block = u8"\u2588";
 
-typedef std::vector<std::vector<Pixel>> Frame;
+typedef std::vector<std::vector<TerminalPixel>> Frame;
 
 using namespace cv;
 
@@ -84,46 +84,57 @@ void display_status_bar(int curr_frame, int total_frames, int duration_seconds, 
               << '\n';
 }
 
-void update_pixel(Pixel new_pixel, size_t x, size_t y, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed, int padding_left);
-void display_entire_frame(std::string &result, const std::vector<std::vector<Pixel>> &currently_displayed, const std::string &left_padding);
-void process_new_frame(const cv::Mat &frame, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed, const std::string &left_padding);
+void update_pixel(TerminalPixel new_pixel, size_t x, size_t y, std::string &result, Frame &currently_displayed, int padding_left);
+void display_entire_frame(std::string &result, const Frame &currently_displayed, const std::string &left_padding);
+void process_new_frame(const cv::Mat &frame, std::string &result, Frame &currently_displayed, const std::string &left_padding);
 
-void init_currently_displayed(const cv::Mat &start_frame, std::vector<std::vector<Pixel>> &currently_displayed) {
-    currently_displayed.resize(start_frame.rows);
-    for (int row = 0; row < start_frame.rows; ++row) {
-        auto &curr_row {currently_displayed[row]};
+void init_currently_displayed(const cv::Mat &start_frame, Frame &currently_displayed) {
+    currently_displayed.reserve(start_frame.rows);
+    for (int row = 0; row < start_frame.rows; row += 2) {
+        std::vector<TerminalPixel> curr_row;
         curr_row.reserve(start_frame.cols);
 
         for (int col = 0; col < start_frame.cols; ++col) {
-            cv::Vec3b pixel = start_frame.at<cv::Vec3b>(row, col);
-            curr_row.emplace_back(pixel);
+            Pixel top_pixel = start_frame.at<cv::Vec3b>(row, col);
+            Pixel bottom_pixel = row + 1 < start_frame.rows ? start_frame.at<cv::Vec3b>(row + 1, col) : top_pixel;
+            curr_row.emplace_back(top_pixel, bottom_pixel);
         }
+
+        currently_displayed.push_back(curr_row);
     }
 }
 
-void process_new_frame(const cv::Mat &frame, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed, const std::string &left_padding) {
+void process_new_frame(const cv::Mat &frame, std::string &result, Frame &currently_displayed, const std::string &left_padding) {
     int pixels {frame.rows * frame.cols};
     size_t diff {};
-    std::vector<std::vector<Pixel>> potential_new_curr_displayed {currently_displayed};
+
+    Frame potential_new_curr_displayed;
+    init_currently_displayed(frame, potential_new_curr_displayed);
+
     std::vector<std::vector<bool>> pixel_diffs;
     pixel_diffs.reserve(potential_new_curr_displayed.size());
 
-    for (int row = 0; row < frame.rows; ++row) {
-        auto &curr_row {currently_displayed[row]};
+    for (size_t row = 0; row < currently_displayed.size(); row++) {
+        const auto &curr_row {currently_displayed[row]};
         std::vector<bool> row_pixel_diffs;
         row_pixel_diffs.resize(frame.cols);
         for (int col = 0; col < frame.cols; ++col) {
-            Pixel p {curr_row[col]};
-            Pixel new_p {frame.at<cv::Vec3b>(row, col)};
+            TerminalPixel p {curr_row[col]};
 
-            potential_new_curr_displayed[row][col] = new_p;
+            Pixel top_new_pixel {frame.at<cv::Vec3b>(row * 2, col)};
+            Pixel bottom_new_pixel;
+            if (row * 2 + 1 < frame.rows)
+                bottom_new_pixel = frame.at<cv::Vec3b>(row * 2 + 1, col);
+            else
+                bottom_new_pixel = top_new_pixel;
+            TerminalPixel new_p {top_new_pixel, bottom_new_pixel};
 
-            if (distance(p, new_p) <= threshold) {
-                continue;
+            if (distance(p.top_pixel, new_p.top_pixel) >= threshold ||
+                distance(p.bottom_pixel, new_p.bottom_pixel) >= threshold
+            ) {
+                row_pixel_diffs[col] = true;
+                diff++;
             }
-            
-            row_pixel_diffs[col] = true;
-            diff++;
         }
         pixel_diffs.push_back(row_pixel_diffs);
     }
@@ -133,9 +144,15 @@ void process_new_frame(const cv::Mat &frame, std::string &result, std::vector<st
         currently_displayed = potential_new_curr_displayed;
         display_entire_frame(result, currently_displayed, left_padding);
     } else
-        for (int row = 0; row < frame.rows; ++row) {
+        for (size_t row = 0; row < currently_displayed.size(); row++) {
             for (int col = 0; col < frame.cols; ++col) {
-                Pixel new_p {frame.at<cv::Vec3b>(row, col)};
+                Pixel top_new_pixel {frame.at<cv::Vec3b>(row * 2, col)};
+                Pixel bottom_new_pixel;
+                if (row * 2 + 1 < frame.rows)
+                    bottom_new_pixel = frame.at<cv::Vec3b>(row * 2 + 1, col);
+                else
+                    bottom_new_pixel = top_new_pixel;
+                TerminalPixel new_p {top_new_pixel, bottom_new_pixel};
 
                 if (!pixel_diffs[row][col])
                     continue;
@@ -145,18 +162,13 @@ void process_new_frame(const cv::Mat &frame, std::string &result, std::vector<st
         }
 }
 
-void update_pixel(Pixel new_pixel, size_t x, size_t y, std::string &result, std::vector<std::vector<Pixel>> &currently_displayed, int padding_left) {
+void update_pixel(TerminalPixel new_pixel, size_t x, size_t y, std::string &result, Frame &currently_displayed, int padding_left) {
     currently_displayed[y][x] = new_pixel;
 
-    auto new_y {y / 2 + 2};
-    auto new_x {x + 1};
-    set_cursor(x + padding_left, new_y, result);
-    bool is_odd_pixel {static_cast<bool>(y % 2)};
-    set_color(new_pixel, !is_odd_pixel, result);
-    if (is_odd_pixel)
-        set_color(currently_displayed[y - 1][x], true, result);
-    else if (y + 1 != currently_displayed.size())
-        set_color(currently_displayed[y + 1][x], false, result);
+    set_cursor(x + padding_left, y + 2, result);
+    set_color(new_pixel.top_pixel, true, result);
+    set_color(new_pixel.bottom_pixel, false, result);
+
     result += block;
 
     if (x == currently_displayed[y].size() - 1) {
@@ -165,19 +177,17 @@ void update_pixel(Pixel new_pixel, size_t x, size_t y, std::string &result, std:
     }
 }
 
-void display_entire_frame(std::string &result, const std::vector<std::vector<Pixel>> &currently_displayed, const std::string &left_padding) {
-    for (int y = 0; y < currently_displayed.size(); y += 2) {
-        const auto &top_row {currently_displayed.at(y)};
-        const auto &bottom_row {y + 1 < currently_displayed.size() ? currently_displayed.at(y + 1) : top_row};
+void display_entire_frame(std::string &result, const Frame &currently_displayed, const std::string &left_padding) {
+    for (const std::vector<TerminalPixel> &row : currently_displayed) {
         result += left_padding;
-        for (int x {0}; x < top_row.size(); x++) {
-            Pixel top_pixel {top_row.at(x)};
-            Pixel bottom_pixel {bottom_row.at(x)};
-            set_color(top_pixel, true, result);
-            set_color(bottom_pixel, false, result);
+        size_t x {};
+        for (TerminalPixel pixel : row) {
+            set_color(pixel.top_pixel, true, result);
+            set_color(pixel.bottom_pixel, false, result);
             result += block;
-            if (x == top_row.size() - 1)
+            if (x == row.size() - 1)
                 result += "\033[0m\n";
+            x++;
         }
     }
 }
@@ -297,7 +307,7 @@ int main(int argc, char *argv[]) {
         int padding_left = (width - data.cols) / 2;
 
         if (frames_to_drop > 1) {
-            display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, currently_displayed[0].size(), currently_displayed.size(), frames_to_drop);
+            display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, currently_displayed[0].size(), currently_displayed.size() * 2, frames_to_drop);
             frames_to_drop--;
             continue;
         }
@@ -321,7 +331,7 @@ int main(int argc, char *argv[]) {
         display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, frame[0].size(), frame.size(), frames_to_drop);
         fmt::print(stdout, to_display);
 
-        std::cout << "\033[0m\033[" << frame.size() - 1 << ";0H";
+        std::cout << "\033[0m\033[" << height - 1 << ";0H";
         draw_progressbar(curr_frame, total_frames, width);
 
         auto endTime = std::chrono::high_resolution_clock::now();
