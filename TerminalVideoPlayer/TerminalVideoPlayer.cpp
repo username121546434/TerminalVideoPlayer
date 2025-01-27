@@ -185,6 +185,7 @@ void draw_progressbar(int current_frame, int total_frames, int width) {
     fmt::print(to_print);
 }
 
+
 int main(int argc, char *argv[]) {
 
 #ifdef _WIN32
@@ -193,8 +194,10 @@ int main(int argc, char *argv[]) {
 
     std::string file;
     std::setlocale(LC_ALL, "");
-    
-    std::cout << "\033[?1049h"; // save screen
+
+    std::cout << "\033[?1049h"; // save current terminal content to restore later
+
+    const auto temp_directory {create_temp_directory()};
 
     if (argc > 1)
         file = argv[1];
@@ -203,9 +206,11 @@ int main(int argc, char *argv[]) {
         std::getline(std::cin, file);
     }
 
-    // convert video to .wav file
-    std::system(fmt::format("ffmpeg -i \"{}\" {}", file, audio_file_name).c_str());
-    AudioPlayer audio_player {audio_file_name.data(), skip_seconds};
+    // convert video to .wav file so miniaudio can play it
+    const auto actual_audio_file = (temp_directory / audio_file_name);
+    std::system(fmt::format("ffmpeg -i \"{}\" {}", file, actual_audio_file.string()).c_str());
+
+    AudioPlayer audio_player {actual_audio_file.string().c_str(), skip_seconds};
 
     VideoCapture video {file, 0};
     if (!video.isOpened()) {
@@ -341,13 +346,9 @@ int main(int argc, char *argv[]) {
     video.release();
     fmt::print("\033[0m"); // resets terminal color so that the user can continue with the same window
 
-#ifdef _WIN32
-    std::system(fmt::format("del {}", audio_file_name).c_str());
-#else
-    std::system(fmt::format("rm {}", audio_file_name).c_str());
-#endif
+    std::filesystem::remove_all(temp_directory);
 
-    std::cout << "\033[?1049l"; // restore screen
+    std::cout << "\033[?1049l"; // restore whatever was on the terminal screen before
 
     std::cout << "Average FPS: " << avg_fps << std::endl;
 }
