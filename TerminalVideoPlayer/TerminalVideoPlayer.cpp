@@ -208,7 +208,7 @@ int main(int argc, char *argv[]) {
 
     // convert video to .wav file so miniaudio can play it
     const auto actual_audio_file = (temp_directory / audio_file_name);
-    std::system(fmt::format("ffmpeg -i \"{}\" {}", file, actual_audio_file.string()).c_str());
+    std::system(fmt::format("ffmpeg -i \"{}\" \"{}\"", file, actual_audio_file.string()).c_str());
 
     AudioPlayer audio_player {actual_audio_file.string().c_str(), skip_seconds};
 
