@@ -218,11 +218,13 @@ void draw_progressbar(int current_frame, int total_frames, int width, std::strin
 
     to_display += "\033[31m";
     to_display.reserve(width * 4);
-    for (int i = 0; i <= whole_width; ++i) {
+    for (int i = 0; i < width; ++i) {
         if (i < whole_width)
             to_display += full_block;
         else if (i == whole_width)
             to_display += partial_block_char;
+        else
+            to_display.push_back(' ');
     }
 }
 
