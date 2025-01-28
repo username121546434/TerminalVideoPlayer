@@ -342,7 +342,8 @@ int main(int argc, char *argv[]) {
             next_target_frame_time = target_frame_time - (actual_sleep_time - sleep_time);
         } else {
             curr_fps = 1.0 / ((double)elapsed_time_ns.count() / nano_seconds_in_second);
-            frames_to_drop += fps / curr_fps + 1;
+            if (fps > curr_fps)
+                frames_to_drop += fps / curr_fps;
             next_target_frame_time = target_frame_time;
         }
     }
