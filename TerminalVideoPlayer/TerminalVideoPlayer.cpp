@@ -281,6 +281,7 @@ int main(int argc, char *argv[]) {
     audio_player.play();
 
     for (long long curr_frame = 1; curr_frame < total_frames; ++curr_frame) {
+        auto startTime = std::chrono::steady_clock::now();
         if (_kbhit()) {
             char key = _getch();
             if (key == ' ' || key == 'k') {
@@ -310,6 +311,7 @@ int main(int argc, char *argv[]) {
                 break;
             else if (key == 'r')
                 should_redraw = true;
+            startTime = std::chrono::steady_clock::now();
         }
         auto startTime = std::chrono::steady_clock::now();
 
@@ -381,7 +383,9 @@ int main(int argc, char *argv[]) {
         } else {
             curr_fps = 1.0 / ((double)elapsed_time_ns.count() / nano_seconds_in_second);
             if (fps > curr_fps)
-                frames_to_drop += fps / curr_fps + 1;
+                frames_to_drop += fps / curr_fps;
+            if (actual_width * actual_height > 700'000)
+                frames_to_drop++;
             next_target_frame_time = target_frame_time;
         }
     }
