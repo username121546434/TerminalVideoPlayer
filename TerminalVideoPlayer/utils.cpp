@@ -1,6 +1,6 @@
 #include "utils.h"
 #include <math.h>
-#include <opencv2/imgproc.hpp>
+#include <sstream>
 #include <iostream>
 #include <stdlib.h>
 #include <fmt/core.h>
@@ -8,14 +8,6 @@
 
 double distance(Pixel p1, Pixel p2) {
     return std::sqrt(std::pow(p1.r - p2.r, 2) + std::pow(p1.g - p2.g, 2) + std::pow(p1.b - p2.b, 2));
-}
-
-cv::Mat resize_mat(const cv::Mat &frame, size_t height, size_t width) {
-    double scale {std::min(static_cast<double>(width) / frame.cols, static_cast<double>(height) / frame.rows)};
-    cv::Size size {static_cast<int>(frame.cols * scale), static_cast<int>(frame.rows * scale)};
-    cv::Mat m;
-    cv::resize(frame, m, size, 0, 0, cv::INTER_AREA);
-    return m;
 }
 
 // taken from https://stackoverflow.com/a/58454949/19581763

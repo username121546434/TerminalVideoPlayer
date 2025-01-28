@@ -1,10 +1,9 @@
 #pragma once
 #include <cstdint>
-#include <opencv2/core/matx.hpp>
 
 struct Pixel {
     Pixel() : r {0}, g {0}, b {0} {}
-    Pixel(cv::Vec3b pixel);
+    Pixel(uint8_t r, uint8_t g, uint8_t b) : r {r}, g {g}, b {b} {}
 
     uint8_t r;
     uint8_t g;

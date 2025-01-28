@@ -157,9 +157,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="get_terminal_size.cpp" />
-    <ClCompile Include="Pixel.cpp" />
     <ClCompile Include="TerminalVideoPlayer.cpp" />
     <ClCompile Include="utils.cpp" />
+    <ClCompile Include="VideoDecoder.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="vcpkg.json" />
@@ -170,6 +170,7 @@
     <ClInclude Include="miniaudio.h" />
     <ClInclude Include="Pixel.h" />
     <ClInclude Include="utils.h" />
+    <ClInclude Include="VideoDecoder.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

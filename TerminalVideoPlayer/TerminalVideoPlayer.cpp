@@ -1,12 +1,17 @@
+// disables min and max macros in windows.h
+#define NOMINMAX
 #include <iostream>
+#include <thread>
 #include "AudioPlayer.h"
 #include <conio.h>
 #include <chrono>
 #include <iomanip>
 #include <string>
 #include <locale>
-#include <opencv2/videoio.hpp>
+#include "VideoDecoder.h"
 #include "get_terminal_size.h"
+#include <array>
+#include <sstream>
 #include "utils.h"
 #include <fmt/core.h>
 #include <map>
@@ -50,8 +55,6 @@ std::array<std::string_view, 8> block_chars {
 constexpr const char *full_block = u8"\u2588";
 
 typedef std::vector<std::vector<TerminalPixel>> Frame;
-
-using namespace cv;
 
 int divmod(int &i, int d) {
     int ret = i / d;
@@ -103,15 +106,15 @@ void update_pixel(TerminalPixel new_pixel, bool move_cursor, size_t x, size_t y,
     print_pixel(new_pixel, x, y, result, currently_displayed);
 }
 
-void init_currently_displayed(const cv::Mat &start_frame, Frame &currently_displayed) {
-    currently_displayed.reserve(start_frame.rows);
-    for (int row = 0; row < start_frame.rows; row += 2) {
+void init_currently_displayed(const std::unique_ptr<Pixel[]> &start_frame, int rows, int cols, Frame &currently_displayed) {
+    currently_displayed.reserve(rows);
+    for (int row = 0; row < rows; row += 2) {
         std::vector<TerminalPixel> curr_row;
-        curr_row.reserve(start_frame.cols);
+        curr_row.reserve(cols);
 
-        for (int col = 0; col < start_frame.cols; ++col) {
-            Pixel top_pixel = start_frame.at<cv::Vec3b>(row, col);
-            Pixel bottom_pixel = row + 1 < start_frame.rows ? start_frame.at<cv::Vec3b>(row + 1, col) : top_pixel;
+        for (int col = 0; col < cols; ++col) {
+            Pixel top_pixel = start_frame[row * cols + col];
+            Pixel bottom_pixel = row + 1 < rows ? start_frame[(row + 1) * cols + col] : top_pixel;
             curr_row.emplace_back(top_pixel, bottom_pixel);
         }
 
@@ -119,20 +122,18 @@ void init_currently_displayed(const cv::Mat &start_frame, Frame &currently_displ
     }
 }
 
-void process_new_frame(const cv::Mat &frame, std::string &result, Frame &currently_displayed, const std::string &left_padding) {
-    int pixels {frame.rows * frame.cols};
-
+void process_new_frame(const std::unique_ptr<Pixel[]> &frame, size_t rows, int cols, std::string &result, Frame &currently_displayed, const std::string &left_padding) {
     bool last_pixel_changed {false};
 
     for (size_t row = 0; row < currently_displayed.size(); row++) {
         const auto &curr_row {currently_displayed[row]};
-        for (int col = 0; col < frame.cols; ++col) {
+        for (int col = 0; col < cols; ++col) {
             TerminalPixel p {curr_row[col]};
 
-            Pixel top_new_pixel {frame.at<cv::Vec3b>(row * 2, col)};
+            Pixel top_new_pixel {frame[(row * 2) * cols + col]};
             Pixel bottom_new_pixel;
-            if (row * 2 + 1 < frame.rows)
-                bottom_new_pixel = frame.at<cv::Vec3b>(row * 2 + 1, col);
+            if (row * 2 + 1 < rows)
+                bottom_new_pixel = frame[(row * 2 + 1) * cols + col];
             else
                 bottom_new_pixel = top_new_pixel;
             TerminalPixel new_p {top_new_pixel, bottom_new_pixel};
@@ -185,7 +186,6 @@ void draw_progressbar(int current_frame, int total_frames, int width) {
     fmt::print(to_print);
 }
 
-
 int main(int argc, char *argv[]) {
 
 #ifdef _WIN32
@@ -212,14 +212,10 @@ int main(int argc, char *argv[]) {
 
     AudioPlayer audio_player {actual_audio_file.string().c_str(), skip_seconds};
 
-    VideoCapture video {file, 0};
-    if (!video.isOpened()) {
-        std::cerr << "Error opening file " << file << std::endl;
-        return 1;
-    }
+    VideoDecoder video {file};
 
-    double total_frames {video.get(VideoCaptureProperties::CAP_PROP_FRAME_COUNT)};
-    double fps {video.get(VideoCaptureProperties::CAP_PROP_FPS)};
+    long long total_frames {video.get_total_frames()};
+    double fps {video.get_fps()};
     double duration_seconds {total_frames / fps};
     double curr_fps {};
     const std::chrono::nanoseconds target_frame_time {static_cast<long long>((1.0 / fps) * nano_seconds_in_second)};
@@ -246,7 +242,7 @@ int main(int argc, char *argv[]) {
 
     audio_player.play();
 
-    for (int curr_frame = 1; curr_frame < total_frames; ++curr_frame) {
+    for (long long curr_frame = 1; curr_frame < total_frames; ++curr_frame) {
         if (_kbhit()) {
             char key = _getch();
             if (key == ' ' || key == 'k') {
@@ -264,13 +260,13 @@ int main(int argc, char *argv[]) {
                 audio_player.play();
             } else if (key == 'l') {
                 // seek forward
-                curr_frame = std::min(curr_frame + seek_frames, static_cast<int>(total_frames) - 1);
-                video.set(VideoCaptureProperties::CAP_PROP_POS_FRAMES, curr_frame);
+                curr_frame = std::min(curr_frame + seek_frames, total_frames - 1);
+                video.skip_to_timestamp(curr_frame / fps);
                 continue;
             } else if (key == 'j') {
                 // seek backward
-                curr_frame = std::max(curr_frame - seek_frames, 1);
-                video.set(VideoCaptureProperties::CAP_PROP_POS_FRAMES, curr_frame);
+                curr_frame = std::max(curr_frame - seek_frames, 1ll);
+                video.skip_to_timestamp(curr_frame / fps);
                 continue;
             } else if (key == 'q')
                 break;
@@ -279,19 +275,31 @@ int main(int argc, char *argv[]) {
         }
         auto startTime = std::chrono::steady_clock::now();
 
-        Mat data;
-        video.read(data);
+        std::unique_ptr<Pixel[]> data = nullptr;
+        bool success = video.get_next_frame(data);
+
+        if (!success) {
+            std::cerr << "Failed to get next frame" << std::endl;
+            break;
+        }
 
         auto [width, height] = get_terminal_size();
         height = height * 2 - 4;
 
-        data = resize_mat(data, height, width);
+        std::unique_ptr<Pixel[]> new_data = nullptr;
+        auto [actual_width, actual_height] = video.resize_frame(data, new_data, width, height);
 
-        int padding_left = (width - data.cols) / 2;
+        // might be a bug in ffmpeg but for some reason after calling
+        // sws_scale(), the data pointer is freed, so if we leave the smart pointer
+        // to deallocate the memory, it will crash so we need to release it
+        data.release();
+
+        int padding_left = (width - actual_width) / 2;
 
         if (frames_to_drop > 1) {
             display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, currently_displayed[0].size(), currently_displayed.size() * 2, frames_to_drop);
             frames_to_drop--;
+
             continue;
         }
 
@@ -301,13 +309,13 @@ int main(int argc, char *argv[]) {
             clear_screen();
             currently_displayed.clear();
 
-            init_currently_displayed(data, currently_displayed);
+            init_currently_displayed(new_data, actual_height, actual_width, currently_displayed);
             display_entire_frame(to_display, currently_displayed, left_padding);
             last_height = height;
             last_width = width;
             should_redraw = false;
         } else {
-            process_new_frame(data, to_display, currently_displayed, left_padding);
+            process_new_frame(new_data, actual_height, actual_width, to_display, currently_displayed, left_padding);
         }
 
         display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, currently_displayed[0].size(), currently_displayed.size() * 2, frames_to_drop);
@@ -343,7 +351,6 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    video.release();
     fmt::print("\033[0m"); // resets terminal color so that the user can continue with the same window
 
     std::filesystem::remove_all(temp_directory);
