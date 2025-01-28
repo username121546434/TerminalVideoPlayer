@@ -148,8 +148,10 @@ void process_new_frame(const std::unique_ptr<Pixel[]> &frame, size_t rows, int c
                 std::pair<bool, bool> change_bg_fg_color {false, false};
                 if (last_p.has_value())
                     change_bg_fg_color = {last_p->top_pixel != new_p.top_pixel, last_p->bottom_pixel != new_p.bottom_pixel};
-                else
+                else {
                     change_bg_fg_color = {true, true};
+                    last_p = new_p;
+                }
                 if (should_move_cursor) {
                     change_bg_fg_color.first = true;
                     change_bg_fg_color.second = true;
