@@ -7,7 +7,10 @@
 #include <algorithm>
 
 double distance(Pixel p1, Pixel p2) {
-    return std::sqrt(std::pow(p1.r - p2.r, 2) + std::pow(p1.g - p2.g, 2) + std::pow(p1.b - p2.b, 2));
+    short r = (short)p1.r - (short)p2.r;
+    short g = (short)p1.g - (short)p2.g;
+    short b = (short)p1.b - (short)p2.b;
+    return std::sqrt((r * r) + (g * g) + (b * b));
 }
 
 // taken from https://stackoverflow.com/a/58454949/19581763
