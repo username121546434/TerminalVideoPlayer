@@ -16,9 +16,13 @@ public:
     VideoDecoder(const std::string &file_path);
     ~VideoDecoder();
 
-    bool get_next_frame(std::unique_ptr<Pixel[]> &out_frame_data);
+    // if heap_allocate is true, the frame data will be allocated on the heap
+    // and the caller is reponsible to free it
+    // otherwise just return a raw pointer to the internal ffmpeg data
+    // in which case the caller should not free the memory
+    const Pixel *get_next_frame(bool heap_allocate);
     void skip_to_timestamp(double timestamp_seconds);
-    std::pair<int, int> resize_frame(const std::unique_ptr<Pixel[]> &input_frame_data, std::unique_ptr<Pixel[]> &output_frame_data, int max_width, int max_height);
+    std::pair<int, int> resize_frame(Pixel *input_frame_data, std::unique_ptr<Pixel[]> &output_frame_data, int max_width, int max_height);
 
     inline int get_width() const {
         return codec_context->width;

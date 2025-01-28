@@ -275,26 +275,12 @@ int main(int argc, char *argv[]) {
         }
         auto startTime = std::chrono::steady_clock::now();
 
-        std::unique_ptr<Pixel[]> data = nullptr;
-        bool success = video.get_next_frame(data);
+        const Pixel *data = video.get_next_frame(false);
 
-        if (!success) {
+        if (!data) {
             std::cerr << "Failed to get next frame" << std::endl;
             break;
         }
-
-        auto [width, height] = get_terminal_size();
-        height = height * 2 - 4;
-
-        std::unique_ptr<Pixel[]> new_data = nullptr;
-        auto [actual_width, actual_height] = video.resize_frame(data, new_data, width, height);
-
-        // might be a bug in ffmpeg but for some reason after calling
-        // sws_scale(), the data pointer is freed, so if we leave the smart pointer
-        // to deallocate the memory, it will crash so we need to release it
-        data.release();
-
-        int padding_left = (width - actual_width) / 2;
 
         if (frames_to_drop > 1) {
             display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, currently_displayed[0].size(), currently_displayed.size() * 2, frames_to_drop);
@@ -302,6 +288,16 @@ int main(int argc, char *argv[]) {
 
             continue;
         }
+
+        auto [width, height] = get_terminal_size();
+        height = height * 2 - 4;
+
+        std::unique_ptr<Pixel[]> new_data = nullptr;
+        // the const cast should be safe since the original ffmpeg data
+        // is not defined as const
+        auto [actual_width, actual_height] = video.resize_frame(const_cast<Pixel*>(data), new_data, width, height);
+
+        int padding_left = (width - actual_width) / 2;
 
         if (curr_frame == 1 || width != last_width || height != last_height || should_redraw) {
             to_display.reserve(width * height * 3);
