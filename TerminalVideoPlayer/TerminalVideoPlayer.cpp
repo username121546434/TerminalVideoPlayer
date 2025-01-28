@@ -77,15 +77,18 @@ std::string format_seconds(int s) {
     return formatted.str();
 }
 
-void display_status_bar(int curr_frame, int total_frames, int duration_seconds, int fps, double curr_fps, int width, int height, double frames_to_drop) {
+void display_status_bar(std::string &to_display, int curr_frame, int total_frames, int duration_seconds, int fps, double curr_fps, double avg_fps, int width, int height, double frames_to_drop) {
     int seconds_watched {curr_frame / fps};
-    std::string result;
-    set_cursor(0, 0, result);
-    std::cout << result;
-    std::cout << "\033[0mFrame " << curr_frame << "/" << total_frames << " " << width << "x" << height << " "
-              << format_seconds(seconds_watched) << "/" << format_seconds(duration_seconds) << " "
-              << std::setprecision(2) << std::fixed << curr_fps << "fps, frames to drop: " << frames_to_drop
-              << '\n';
+    std::string status_bar;
+    set_cursor(0, 0, status_bar);
+    fmt::format_to(
+        std::back_inserter(status_bar),
+        "\033[0mFrame {}/{} {}x{} {}/{} {:.2f}fps, frames to drop: {:.2f} average fps: {:.2f}\n",
+        curr_frame, total_frames, width, height,
+        format_seconds(seconds_watched), format_seconds(duration_seconds),
+        curr_fps, frames_to_drop, avg_fps
+    );
+    to_display = status_bar + to_display;
 }
 
 inline void print_pixel(TerminalPixel pixel, size_t x, size_t y, std::string &result, const Frame &currently_displayed, std::pair<bool, bool> change_bg_fg_color) {
@@ -205,7 +208,7 @@ void display_entire_frame(std::string &result, const Frame &currently_displayed,
     }
 }
 
-void draw_progressbar(int current_frame, int total_frames, int width) {
+void draw_progressbar(int current_frame, int total_frames, int width, std::string &to_display) {
     double progress = (static_cast<double>(current_frame) / total_frames);
     int whole_width = std::floor(progress * width);
     double remainder_width = fmod(progress * width, 1.0);
@@ -213,17 +216,14 @@ void draw_progressbar(int current_frame, int total_frames, int width) {
 
     const auto &partial_block_char = block_chars[part_width];
 
-    std::string to_print {"\033[31m"};
-    to_print.reserve(width * 4);
-    for (int i = 0; i < width; ++i) {
+    to_display += "\033[31m";
+    to_display.reserve(width * 4);
+    for (int i = 0; i <= whole_width; ++i) {
         if (i < whole_width)
-            to_print += full_block;
+            to_display += full_block;
         else if (i == whole_width)
-            to_print += partial_block_char;
-        else
-            to_print.push_back(' ');
+            to_display += partial_block_char;
     }
-    fmt::print(to_print);
 }
 
 int main(int argc, char *argv[]) {
@@ -315,7 +315,6 @@ int main(int argc, char *argv[]) {
                 should_redraw = true;
             startTime = std::chrono::steady_clock::now();
         }
-        auto startTime = std::chrono::steady_clock::now();
 
         const Pixel *data = video.get_next_frame(false);
 
@@ -325,7 +324,9 @@ int main(int argc, char *argv[]) {
         }
 
         if (frames_to_drop > 1) {
-            display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, currently_displayed[0].size(), currently_displayed.size() * 2, frames_to_drop);
+            display_status_bar(to_display, curr_frame, total_frames, duration_seconds, fps, curr_fps, avg_fps, currently_displayed[0].size(), currently_displayed.size() * 2, frames_to_drop);
+            fmt::print(stdout, to_display);
+            to_display.clear();
             frames_to_drop--;
 
             continue;
@@ -356,11 +357,13 @@ int main(int argc, char *argv[]) {
             process_new_frame(new_data, actual_height, actual_width, to_display, currently_displayed, left_padding);
         }
 
-        display_status_bar(curr_frame, total_frames, duration_seconds, fps, curr_fps, currently_displayed[0].size(), currently_displayed.size() * 2, frames_to_drop);
-        fmt::print(stdout, to_display);
+        display_status_bar(to_display, curr_frame, total_frames, duration_seconds, fps, curr_fps, avg_fps, currently_displayed[0].size(), currently_displayed.size() * 2, frames_to_drop);
 
-        std::cout << "\033[0m\033[" << height - 1 << ";0H";
-        draw_progressbar(curr_frame, total_frames, width);
+        fmt::format_to(std::back_inserter(to_display), "\033[0m\033[{};0H", height - 1);
+        draw_progressbar(curr_frame, total_frames, width, to_display);
+
+        fmt::print(to_display);
+        to_display.clear();
 
         if (curr_frame == 1)
             avg_fps = curr_fps;
@@ -369,8 +372,6 @@ int main(int argc, char *argv[]) {
 
         if (curr_frame % 5 == 0)
             audio_player.seek_to(curr_frame / fps);
-
-        to_display.clear();
 
         auto endTime = std::chrono::steady_clock::now();
         auto elapsed_time_ns = (endTime - startTime);
@@ -386,7 +387,7 @@ int main(int argc, char *argv[]) {
             curr_fps = 1.0 / ((double)elapsed_time_ns.count() / nano_seconds_in_second);
             if (fps > curr_fps)
                 frames_to_drop += fps / curr_fps;
-            if (actual_width * actual_height > 700'000)
+            if (actual_width * actual_height > 400'000)
                 frames_to_drop++;
             next_target_frame_time = target_frame_time;
         }
