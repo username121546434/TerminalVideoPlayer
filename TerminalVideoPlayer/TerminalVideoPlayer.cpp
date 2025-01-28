@@ -15,6 +15,7 @@
 #include "utils.h"
 #include <fmt/core.h>
 #include <map>
+#include <optional>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -87,9 +88,11 @@ void display_status_bar(int curr_frame, int total_frames, int duration_seconds, 
               << '\n';
 }
 
-inline void print_pixel(TerminalPixel pixel, size_t x, size_t y, std::string &result, const Frame &currently_displayed) {
-    set_color(pixel.top_pixel, true, result);
-    set_color(pixel.bottom_pixel, false, result);
+inline void print_pixel(TerminalPixel pixel, size_t x, size_t y, std::string &result, const Frame &currently_displayed, std::pair<bool, bool> change_bg_fg_color) {
+    if (change_bg_fg_color.first)
+        set_color(pixel.top_pixel, true, result);
+    if (change_bg_fg_color.second)
+        set_color(pixel.bottom_pixel, false, result);
 
     result += block;
 
@@ -99,11 +102,11 @@ inline void print_pixel(TerminalPixel pixel, size_t x, size_t y, std::string &re
     }
 }
 
-void update_pixel(TerminalPixel new_pixel, bool move_cursor, size_t x, size_t y, std::string &result, Frame &currently_displayed, int padding_left) {
+void update_pixel(TerminalPixel new_pixel, std::pair<bool, bool> change_bg_fg_color, bool move_cursor, size_t x, size_t y, std::string &result, Frame &currently_displayed, int padding_left) {
     currently_displayed[y][x] = new_pixel;
     if (move_cursor)
         set_cursor(x + padding_left, y + 2, result);
-    print_pixel(new_pixel, x, y, result, currently_displayed);
+    print_pixel(new_pixel, x, y, result, currently_displayed, change_bg_fg_color);
 }
 
 void init_currently_displayed(const std::unique_ptr<Pixel[]> &start_frame, int rows, int cols, Frame &currently_displayed) {
@@ -124,7 +127,7 @@ void init_currently_displayed(const std::unique_ptr<Pixel[]> &start_frame, int r
 
 void process_new_frame(const std::unique_ptr<Pixel[]> &frame, size_t rows, int cols, std::string &result, Frame &currently_displayed, const std::string &left_padding) {
     bool last_pixel_changed {false};
-
+    std::optional<TerminalPixel> last_p;
     for (size_t row = 0; row < currently_displayed.size(); row++) {
         const auto &curr_row {currently_displayed[row]};
         for (int col = 0; col < cols; ++col) {
@@ -141,10 +144,37 @@ void process_new_frame(const std::unique_ptr<Pixel[]> &frame, size_t rows, int c
             if (distance(p.top_pixel, new_p.top_pixel) >= threshold ||
                 distance(p.bottom_pixel, new_p.bottom_pixel) >= threshold
             ) {
-                update_pixel(new_p, (!last_pixel_changed || (col == 0)), col, row, result, currently_displayed, left_padding.size());
+                bool should_move_cursor = (!last_pixel_changed || (col == 0));
+                std::pair<bool, bool> change_bg_fg_color {false, false};
+                if (last_p.has_value())
+                    change_bg_fg_color = {last_p->top_pixel != new_p.top_pixel, last_p->bottom_pixel != new_p.bottom_pixel};
+                else
+                    change_bg_fg_color = {true, true};
+                if (should_move_cursor) {
+                    change_bg_fg_color.first = true;
+                    change_bg_fg_color.second = true;
+                }
+                update_pixel(
+                    new_p,
+                    change_bg_fg_color,
+                    should_move_cursor,
+                    col,
+                    row,
+                    result,
+                    currently_displayed,
+                    left_padding.size()
+                );
                 last_pixel_changed = true;
-            } else
+                if (last_p.has_value()) {
+                    if (change_bg_fg_color.first)
+                        last_p->top_pixel = new_p.top_pixel;
+                    if (change_bg_fg_color.second)
+                        last_p->bottom_pixel = new_p.bottom_pixel;
+                }
+            } else {
                 last_pixel_changed = false;
+                last_p.reset();
+            }
         }
     }
 }
@@ -154,11 +184,19 @@ void display_entire_frame(std::string &result, const Frame &currently_displayed,
     for (const std::vector<TerminalPixel> &row : currently_displayed) {
         result += left_padding;
         size_t x = 0;
+        TerminalPixel last_pixel;
         for (TerminalPixel pixel : row) {
-            print_pixel(pixel, x, y, result, currently_displayed);
+            std::pair<bool, bool> change_bg_fg_color {false, false};
+            if (pixel.top_pixel != last_pixel.top_pixel)
+                change_bg_fg_color.first = true;
+            if (pixel.bottom_pixel != last_pixel.bottom_pixel)
+                change_bg_fg_color.second = true;
+
+            print_pixel(pixel, x, y, result, currently_displayed, change_bg_fg_color);
             if (x == row.size() - 1) {
                 result.push_back('\n');
             }
+            last_pixel = pixel;
             x++;
         }
         y++;

@@ -8,6 +8,13 @@ struct Pixel {
     uint8_t r;
     uint8_t g;
     uint8_t b;
+
+    bool operator==(Pixel other) const {
+        return r == other.r && g == other.g && b == other.b;
+    }
+    bool operator!=(Pixel other) const {
+        return !(*this == other);
+    }
 };
 
 struct TerminalPixel {
