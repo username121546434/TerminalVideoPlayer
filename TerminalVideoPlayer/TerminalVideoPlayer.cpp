@@ -21,6 +21,7 @@
 #ifdef _WIN32
 #include <windows.h>
 // Function to enable virtual terminal processing
+// this is nessary to use ANSI escape codes on windows
 void EnableVirtualTerminalProcessing() {
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
     if (hOut == INVALID_HANDLE_VALUE) {
