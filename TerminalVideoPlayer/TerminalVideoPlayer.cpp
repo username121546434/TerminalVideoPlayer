@@ -178,7 +178,6 @@ void process_new_frame(const std::unique_ptr<Pixel[]> &frame, size_t rows, int c
                 }
             } else {
                 last_pixel_changed = false;
-                last_p.reset();
             }
         }
     }
