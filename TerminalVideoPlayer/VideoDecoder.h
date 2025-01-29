@@ -22,7 +22,7 @@ public:
     // in which case the caller should not free the memory
     const AVFrame *get_next_frame();
     long double skip_to_timestamp(double timestamp_seconds);
-    std::pair<int, int> resize_frame(const AVFrame *input_frame, std::unique_ptr<Pixel[]> &output_frame_data, int max_width, int max_height);
+    std::pair<int, int> resize_frame(const AVFrame *input_frame, std::unique_ptr<const Pixel[]> &output_frame_data, int max_width, int max_height);
 
     inline int get_width() const {
         return codec_context->width;
@@ -40,6 +40,8 @@ private:
     AVFormatContext *format_context = nullptr;
     AVCodecContext *codec_context = nullptr;
     AVCodecParameters *codec_parameters = nullptr;
+    AVPacket *packet = nullptr;
+    AVFrame *resized_frame = nullptr;
     const AVCodec *codec = nullptr;
     AVFrame *frame = nullptr;
     AVFrame *frame_rgb = nullptr;

@@ -112,7 +112,7 @@ void update_pixel(TerminalPixel new_pixel, std::pair<bool, bool> change_bg_fg_co
     print_pixel(new_pixel, x, y, result, currently_displayed, change_bg_fg_color);
 }
 
-void init_currently_displayed(const std::unique_ptr<Pixel[]> &start_frame, int rows, int cols, Frame &currently_displayed) {
+void init_currently_displayed(const std::unique_ptr<const Pixel[]> &start_frame, int rows, int cols, Frame &currently_displayed) {
     currently_displayed.reserve(rows);
     for (int row = 0; row < rows; row += 2) {
         std::vector<TerminalPixel> curr_row;
@@ -128,7 +128,7 @@ void init_currently_displayed(const std::unique_ptr<Pixel[]> &start_frame, int r
     }
 }
 
-void process_new_frame(const std::unique_ptr<Pixel[]> &frame, size_t rows, int cols, std::string &result, Frame &currently_displayed, const std::string &left_padding) {
+void process_new_frame(const std::unique_ptr<const Pixel[]> &frame, size_t rows, int cols, std::string &result, Frame &currently_displayed, const std::string &left_padding) {
     bool last_pixel_changed {false};
     std::optional<TerminalPixel> last_p;
     for (size_t row = 0; row < currently_displayed.size(); row++) {
@@ -336,9 +336,7 @@ int main(int argc, char *argv[]) {
         auto [width, height] = get_terminal_size();
         height = height * 2 - 4;
 
-        std::unique_ptr<Pixel[]> new_data = nullptr;
-        // the const cast should be safe since the original ffmpeg data
-        // is not defined as const
+        std::unique_ptr<const Pixel[]> new_data = nullptr;
         auto [actual_width, actual_height] = video.resize_frame(data, new_data, width, height);
 
         int padding_left = (width - actual_width) / 2;

@@ -45,8 +45,10 @@ VideoDecoder::VideoDecoder(const std::string &file_path) {
 
     frame = av_frame_alloc();
     frame_rgb = av_frame_alloc();
-    if (!frame || !frame_rgb) {
-        throw std::runtime_error("Could not allocate frame.");
+    packet = av_packet_alloc();
+    resized_frame = av_frame_alloc();
+    if (!frame || !frame_rgb || !packet || !resized_frame) {
+        throw std::runtime_error("Could not allocate frame or packet.");
     }
 
     int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_RGB24, codec_context->width, codec_context->height, 1);
@@ -73,25 +75,25 @@ VideoDecoder::VideoDecoder(const std::string &file_path) {
 VideoDecoder::~VideoDecoder() {
     av_frame_free(&frame);
     av_frame_free(&frame_rgb);
+    av_frame_free(&resized_frame);
+    av_packet_free(&packet);
     sws_freeContext(sws_context);
     avcodec_free_context(&codec_context);
     avformat_close_input(&format_context);
 }
 
 const AVFrame *VideoDecoder::get_next_frame() {
-    AVPacket packet;
-    while (av_read_frame(format_context, &packet) >= 0) {
-        if (packet.stream_index == video_stream_index) {
-            if (avcodec_send_packet(codec_context, &packet) == 0) {
+    while (av_read_frame(format_context, packet) >= 0) {
+        if (packet->stream_index == video_stream_index) {
+            if (avcodec_send_packet(codec_context, packet) == 0) {
                 if (avcodec_receive_frame(codec_context, frame) == 0) {
                     sws_scale(sws_context, frame->data, frame->linesize, 0, codec_context->height, frame_rgb->data, frame_rgb->linesize);
-
-                    av_packet_unref(&packet);
+                    av_packet_unref(packet);
                     return frame_rgb;
                 }
             }
         }
-        av_packet_unref(&packet);
+        av_packet_unref(packet);
     }
     return nullptr;
 }
@@ -110,8 +112,7 @@ long double VideoDecoder::skip_to_timestamp(double timestamp_seconds) {
     return timestamp_in_seconds_that_was_actually_seeked;
 }
 
-std::pair<int, int> VideoDecoder::resize_frame(const AVFrame *input_frame, std::unique_ptr<Pixel[]> &output_frame_data, int max_width, int max_height) {
-    // Calculate aspect ratio
+std::pair<int, int> VideoDecoder::resize_frame(const AVFrame *input_frame, std::unique_ptr<const Pixel[]> &output_frame_data, int max_width, int max_height) {
     double aspect_ratio = static_cast<double>(codec_context->width) / codec_context->height;
     int new_width = max_width;
     int new_height = max_height;
@@ -131,7 +132,6 @@ std::pair<int, int> VideoDecoder::resize_frame(const AVFrame *input_frame, std::
         throw std::runtime_error("Could not initialize resize SwsContext.");
     }
 
-    AVFrame *resized_frame = av_frame_alloc();
     int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_RGB24, new_width, new_height, 1);
     auto data = std::unique_ptr<uint8_t[]>(new uint8_t[num_bytes]);
     av_image_fill_arrays(resized_frame->data, resized_frame->linesize, data.get(), AV_PIX_FMT_RGB24, new_width, new_height, 1);
@@ -144,7 +144,6 @@ std::pair<int, int> VideoDecoder::resize_frame(const AVFrame *input_frame, std::
         resized_frame->data, resized_frame->linesize);
 
     resized_frame->data[0] = nullptr; // to ensure that ffmpeg doesn't free the output data
-    av_frame_free(&resized_frame);
     sws_freeContext(resize_context);
 
     return {new_width, new_height};
