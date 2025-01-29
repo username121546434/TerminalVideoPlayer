@@ -12,6 +12,12 @@ void print_help() {
     std::cout << "  -r, --redraw\t\t\tForce redraw of the entire frame instead of optimizing and only updating pixels that need updating" << std::endl;
     std::cout << "              \t\t\tDefault is false, should only be used if you hate artifacts, love slow powerpoint presentations," << std::endl;
     std::cout << "              \t\t\tor if your terminal font size is somewhat big" << std::endl;
+    std::cout << "\nVideo Controls:" << std::endl;
+    std::cout << "  q\t\t\tQuit" << std::endl;
+    std::cout << "  r\t\t\tRedraw the entire frame, use if you want to get rid of artifacts" << std::endl;
+    std::cout << "  space or k\t\tPause/Play the video" << std::endl;
+    std::cout << "  j\t\t\tSkip back 5 seconds" << std::endl;
+    std::cout << "  k\t\t\tSkip forward 5 seconds" << std::endl;
 }
 
 std::tuple<bool, double, std::string> parse_command_line(int argc, char *argv[]) {
