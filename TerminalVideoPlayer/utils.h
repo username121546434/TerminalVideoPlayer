@@ -3,8 +3,7 @@
 #include <filesystem>
 #include <random>
 #include <string>
-
-const char esc = '\x1B';
+#include "constants.h"
 
 double distance(Pixel p1, Pixel p2);
 
