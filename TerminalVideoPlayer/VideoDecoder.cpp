@@ -1,4 +1,5 @@
 #include "VideoDecoder.h"
+#include <thread>
 #include <iostream>
 #include <stdexcept>
 
@@ -64,6 +65,9 @@ VideoDecoder::VideoDecoder(const std::string &file_path) {
 
     fps = av_q2d(format_context->streams[video_stream_index]->r_frame_rate);
     total_frames = format_context->streams[video_stream_index]->nb_frames;
+
+    codec_context->thread_count = std::thread::hardware_concurrency();
+    codec_context->thread_type = FF_THREAD_FRAME;
 }
 
 VideoDecoder::~VideoDecoder() {
