@@ -78,7 +78,7 @@ VideoDecoder::~VideoDecoder() {
     avformat_close_input(&format_context);
 }
 
-const Pixel *VideoDecoder::get_next_frame(bool heap_allocate) {
+const AVFrame *VideoDecoder::get_next_frame() {
     AVPacket packet;
     while (av_read_frame(format_context, &packet) >= 0) {
         if (packet.stream_index == video_stream_index) {
@@ -87,16 +87,7 @@ const Pixel *VideoDecoder::get_next_frame(bool heap_allocate) {
                     sws_scale(sws_context, frame->data, frame->linesize, 0, codec_context->height, frame_rgb->data, frame_rgb->linesize);
 
                     av_packet_unref(&packet);
-                    if (heap_allocate) {
-                        // Allocate memory for output frame data
-                        int pixel_count = codec_context->width * codec_context->height;
-                        Pixel *out_frame_data = new Pixel[pixel_count];
-
-                        // Copy data from frame_rgb->data[0] to out_frame_data
-                        std::memcpy(out_frame_data, frame_rgb->data[0], pixel_count * sizeof(Pixel));
-                        return out_frame_data;
-                    }
-                    return reinterpret_cast<Pixel *>(frame_rgb->data[0]);
+                    return frame_rgb;
                 }
             }
         }
@@ -113,13 +104,13 @@ long double VideoDecoder::skip_to_timestamp(double timestamp_seconds) {
         throw std::runtime_error("Could not seek to the requested timestamp.");
     }
     avcodec_flush_buffers(codec_context);
-    get_next_frame(false);
+    get_next_frame();
     auto timestamp_in_seconds_that_was_actually_seeked =
         (long double)format_context->streams[video_stream_index]->time_base.num * frame->best_effort_timestamp / format_context->streams[video_stream_index]->time_base.den;
     return timestamp_in_seconds_that_was_actually_seeked;
 }
 
-std::pair<int, int> VideoDecoder::resize_frame(Pixel *input_frame_data, std::unique_ptr<Pixel[]> &output_frame_data, int max_width, int max_height) {
+std::pair<int, int> VideoDecoder::resize_frame(const AVFrame *input_frame, std::unique_ptr<Pixel[]> &output_frame_data, int max_width, int max_height) {
     // Calculate aspect ratio
     double aspect_ratio = static_cast<double>(codec_context->width) / codec_context->height;
     int new_width = max_width;
@@ -147,17 +138,11 @@ std::pair<int, int> VideoDecoder::resize_frame(Pixel *input_frame_data, std::uni
 
     output_frame_data = std::unique_ptr<Pixel[]>(reinterpret_cast<Pixel *>(data.release()));
 
-    AVFrame input_frame;
-
-    input_frame.data[0] = reinterpret_cast<uint8_t*>(input_frame_data);
-    input_frame.linesize[0] = codec_context->width * 3;
-
     sws_scale(
         resize_context,
-        &input_frame.data[0], &input_frame.linesize[0], 0, codec_context->height,
+        &input_frame->data[0], &input_frame->linesize[0], 0, codec_context->height,
         resized_frame->data, resized_frame->linesize);
 
-    input_frame.data[0] = nullptr; // to ensure that ffmpeg doesn't free the input data
     resized_frame->data[0] = nullptr; // to ensure that ffmpeg doesn't free the output data
     av_frame_free(&resized_frame);
     sws_freeContext(resize_context);

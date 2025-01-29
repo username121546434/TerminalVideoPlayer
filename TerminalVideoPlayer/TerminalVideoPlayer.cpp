@@ -317,7 +317,7 @@ int main(int argc, char *argv[]) {
             startTime = std::chrono::steady_clock::now();
         }
 
-        const Pixel *data = video.get_next_frame(false);
+        const AVFrame *data = video.get_next_frame();
 
         if (!data) {
             std::cerr << "Failed to get next frame" << std::endl;
@@ -339,7 +339,7 @@ int main(int argc, char *argv[]) {
         std::unique_ptr<Pixel[]> new_data = nullptr;
         // the const cast should be safe since the original ffmpeg data
         // is not defined as const
-        auto [actual_width, actual_height] = video.resize_frame(const_cast<Pixel*>(data), new_data, width, height);
+        auto [actual_width, actual_height] = video.resize_frame(data, new_data, width, height);
 
         int padding_left = (width - actual_width) / 2;
 
