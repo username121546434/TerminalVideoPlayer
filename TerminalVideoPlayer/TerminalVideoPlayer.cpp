@@ -17,6 +17,8 @@
 #include <fmt/core.h>
 #include <map>
 #include <optional>
+#include <filesystem>
+#include "commandline.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -114,7 +116,7 @@ void init_currently_displayed(const std::unique_ptr<const Pixel[]> &start_frame,
     }
 }
 
-void process_new_frame(const std::unique_ptr<const Pixel[]> &frame, size_t rows, int cols, std::string &result, Frame &currently_displayed, const std::string &left_padding) {
+void process_new_frame(const std::unique_ptr<const Pixel[]> &frame, size_t rows, int cols, std::string &result, Frame &currently_displayed, const std::string &left_padding, int optimization_threshold) {
     bool last_pixel_changed {false};
     std::optional<TerminalPixel> last_p;
     for (size_t row = 0; row < currently_displayed.size(); row++) {
@@ -130,8 +132,8 @@ void process_new_frame(const std::unique_ptr<const Pixel[]> &frame, size_t rows,
                 bottom_new_pixel = top_new_pixel;
             TerminalPixel new_p {top_new_pixel, bottom_new_pixel};
 
-            if (distance(p.top_pixel, new_p.top_pixel) >= default_optimization_threshold ||
-                distance(p.bottom_pixel, new_p.bottom_pixel) >= default_optimization_threshold
+            if (distance(p.top_pixel, new_p.top_pixel) >= optimization_threshold ||
+                distance(p.bottom_pixel, new_p.bottom_pixel) >= optimization_threshold
             ) {
                 bool should_move_cursor = (!last_pixel_changed || (col == 0));
                 std::pair<bool, bool> change_bg_fg_color {false, false};
@@ -214,32 +216,25 @@ void draw_progressbar(int current_frame, int total_frames, int width, std::strin
 }
 
 int main(int argc, char *argv[]) {
+    auto [always_redraw, optimization_threshold, video_file] = parse_command_line(argc, argv);
+
+    std::setlocale(LC_ALL, "");
 
 #ifdef _WIN32
     EnableVirtualTerminalProcessing();
 #endif
 
-    std::string file;
-    std::setlocale(LC_ALL, "");
-
     std::cout << "\033[?1049h"; // save current terminal content to restore later
 
     const auto temp_directory {create_temp_directory()};
 
-    if (argc > 1)
-        file = argv[1];
-    else {
-        std::cout << "Enter a video file: ";
-        std::getline(std::cin, file);
-    }
-
     // convert video to .wav file so miniaudio can play it
     const auto actual_audio_file = (temp_directory / audio_file_name);
-    std::system(fmt::format("ffmpeg -i \"{}\" \"{}\"", file, actual_audio_file.string()).c_str());
+    std::system(fmt::format("ffmpeg -i \"{}\" \"{}\"", video_file, actual_audio_file.string()).c_str());
 
     AudioPlayer audio_player {actual_audio_file.string().c_str(), skip_seconds};
 
-    VideoDecoder video {file};
+    VideoDecoder video {video_file};
 
     long long total_frames {video.get_total_frames()};
     double fps {video.get_fps()};
@@ -327,10 +322,12 @@ int main(int argc, char *argv[]) {
 
         int padding_left = (width - actual_width) / 2;
 
-        if (curr_frame == 1 || width != last_width || height != last_height || should_redraw) {
-            to_display.reserve(width * height * 3);
-            left_padding.resize(padding_left, ' ');
-            clear_screen();
+        if (curr_frame == 1 || width != last_width || height != last_height || should_redraw || always_redraw) {
+            if (curr_frame == 1 || width != last_width || height != last_height) {
+                to_display.reserve(width * height * 3);
+                left_padding.resize(padding_left, ' ');
+                clear_screen();
+            }
             currently_displayed.clear();
 
             init_currently_displayed(new_data, actual_height, actual_width, currently_displayed);
@@ -339,7 +336,7 @@ int main(int argc, char *argv[]) {
             last_width = width;
             should_redraw = false;
         } else {
-            process_new_frame(new_data, actual_height, actual_width, to_display, currently_displayed, left_padding);
+            process_new_frame(new_data, actual_height, actual_width, to_display, currently_displayed, left_padding, optimization_threshold);
         }
 
         display_status_bar(to_display, curr_frame, total_frames, duration_seconds, fps, curr_fps, avg_fps, currently_displayed[0].size(), currently_displayed.size() * 2, frames_to_drop);
