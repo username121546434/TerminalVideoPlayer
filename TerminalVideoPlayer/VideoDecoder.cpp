@@ -101,12 +101,18 @@ const Pixel *VideoDecoder::get_next_frame(bool heap_allocate) {
     return nullptr;
 }
 
-void VideoDecoder::skip_to_timestamp(double timestamp_seconds) {
+long double VideoDecoder::skip_to_timestamp(double timestamp_seconds) {
     // std::cout << "Skipping to timestamp " << timestamp_seconds << " seconds." << std::endl;
+    auto time = av_rescale(timestamp_seconds * 1000, format_context->streams[video_stream_index]->time_base.den, format_context->streams[video_stream_index]->time_base.num);
+    time /= 1000;
     if (av_seek_frame(format_context, -1, timestamp_seconds * AV_TIME_BASE, AVSEEK_FLAG_BACKWARD) < 0) {
         throw std::runtime_error("Could not seek to the requested timestamp.");
     }
     avcodec_flush_buffers(codec_context);
+    get_next_frame(false);
+    auto timestamp_in_seconds_that_was_actually_seeked =
+        (long double)format_context->streams[video_stream_index]->time_base.num * frame->best_effort_timestamp / format_context->streams[video_stream_index]->time_base.den;
+    return timestamp_in_seconds_that_was_actually_seeked;
 }
 
 std::pair<int, int> VideoDecoder::resize_frame(Pixel *input_frame_data, std::unique_ptr<Pixel[]> &output_frame_data, int max_width, int max_height) {

@@ -304,12 +304,12 @@ int main(int argc, char *argv[]) {
             } else if (key == 'l') {
                 // seek forward
                 curr_frame = std::min(curr_frame + seek_frames, total_frames - 1);
-                video.skip_to_timestamp(curr_frame / fps);
+                curr_frame = video.skip_to_timestamp(curr_frame / fps) * fps;
                 continue;
             } else if (key == 'j') {
                 // seek backward
                 curr_frame = std::max(curr_frame - seek_frames, 1ll);
-                video.skip_to_timestamp(curr_frame / fps);
+                curr_frame = video.skip_to_timestamp(curr_frame / fps) * fps;
                 continue;
             } else if (key == 'q')
                 break;
