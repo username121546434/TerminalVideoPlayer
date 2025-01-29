@@ -129,8 +129,8 @@ void process_new_frame(const std::unique_ptr<const Pixel[]> &frame, size_t rows,
                 bottom_new_pixel = top_new_pixel;
             TerminalPixel new_p {top_new_pixel, bottom_new_pixel};
 
-            if (distance(p.top_pixel, new_p.top_pixel) >= threshold ||
-                distance(p.bottom_pixel, new_p.bottom_pixel) >= threshold
+            if (distance(p.top_pixel, new_p.top_pixel) >= default_optimization_threshold ||
+                distance(p.bottom_pixel, new_p.bottom_pixel) >= default_optimization_threshold
             ) {
                 bool should_move_cursor = (!last_pixel_changed || (col == 0));
                 std::pair<bool, bool> change_bg_fg_color {false, false};

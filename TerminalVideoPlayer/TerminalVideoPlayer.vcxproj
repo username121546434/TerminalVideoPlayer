@@ -156,6 +156,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="commandline.cpp" />
     <ClCompile Include="get_terminal_size.cpp" />
     <ClCompile Include="TerminalVideoPlayer.cpp" />
     <ClCompile Include="utils.cpp" />
@@ -166,6 +167,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioPlayer.h" />
+    <ClInclude Include="commandline.h" />
+    <ClInclude Include="constants.h" />
     <ClInclude Include="get_terminal_size.h" />
     <ClInclude Include="miniaudio.h" />
     <ClInclude Include="Pixel.h" />

@@ -7,7 +7,7 @@
 const char esc = '\x1B';
 
 constexpr const char *block = u8"\u2584"; // ? character
-constexpr double threshold = 25.0;
+constexpr double default_optimization_threshold = 25.0;
 
 constexpr std::string_view audio_file_name = "output_audio.wav";
 
