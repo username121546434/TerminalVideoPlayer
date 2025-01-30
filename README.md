@@ -6,7 +6,7 @@ A video player that runs completely in your terminal!
 
 Click on the image to see the video
 
-[![Demo of the terminal video player](https://img.youtube.com/vi/9bTkm5nY0E8/0.jpg)](https://www.youtube.com/watch?v=9bTkm5nY0E8)
+[![Demo of the terminal video player](https://img.youtube.com/vi/XUbJASvvWxE/0.jpg)](https://www.youtube.com/watch?v=XUbJASvvWxE)
 
 # How does it work?
 
